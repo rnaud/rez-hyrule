@@ -725,6 +725,238 @@ function makeWizzrobe() {
   markShared(root);
   return root;
 }
+function makeArmos() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'body';
+  root.add(body);
+  const stone = 0xd9b66f;
+  const dark = 0x745734;
+  const cyan = 0x8ef7ff;
+  const gold = 0xffdc7c;
+
+  // Squat stone legs and skirt.
+  for (const side of [-1, 1]) {
+    addWire(body, new THREE.BoxGeometry(0.5, 0.7, 0.6), dark, {
+      pos: [side * 0.52, 0.4, 0],
+      rot: [0.04, 0, side * 0.05],
+      opacity: 0.8,
+    });
+  }
+  addWire(body, new THREE.CylinderGeometry(0.9, 1.15, 0.55, 6), stone, { pos: [0, 0.85, 0] });
+  // Torso and shoulders.
+  const chest = new THREE.BoxGeometry(1.5, 1.35, 0.9);
+  addFill(body, chest, 0x272014, 0.5, { pos: [0, 1.8, 0] });
+  addWire(body, chest, stone, { pos: [0, 1.8, 0] });
+  addWire(body, new THREE.BoxGeometry(2.1, 0.28, 0.9), dark, { pos: [0, 2.35, 0], opacity: 0.75 });
+  // Head with a single watching eye.
+  const head = new THREE.IcosahedronGeometry(0.55, 0);
+  addFill(body, head, 0x1e1a12, 0.65, { pos: [0, 2.9, 0], scale: [0.95, 1.1, 0.85] });
+  addWire(body, head, stone, { pos: [0, 2.9, 0], scale: [0.95, 1.1, 0.85] });
+  addWire(body, new THREE.ConeGeometry(0.25, 0.8, 4), gold, { pos: [0, 3.55, 0], rot: [0, 0.4, 0], opacity: 0.7 });
+  addGlow(body, cyan, 0.8, [0, 2.9, 0.42], 0.95);
+  addWire(body, new THREE.TorusGeometry(0.32, 0.06, 4, 10), gold, { pos: [0, 2.9, 0.47], opacity: 0.8 });
+  // Shield arm.
+  for (const side of [-1, 1]) {
+    addWire(body, new THREE.CylinderGeometry(0.18, 0.2, 1.1, 4), stone, {
+      pos: [side * 1.05, 1.85, 0.05],
+      rot: [0.1, 0, side * -0.3],
+      opacity: 0.8,
+    });
+    addWire(body, new THREE.IcosahedronGeometry(0.24), dark, { pos: [side * 1.25, 1.25, 0.1] });
+  }
+  const shield = new THREE.Group();
+  shield.position.set(-1.3, 1.55, 0.35);
+  shield.rotation.set(0.1, 0.35, 0.2);
+  body.add(shield);
+  const shieldGeo = new THREE.CylinderGeometry(0.82, 0.82, 0.12, 6);
+  addFill(shield, shieldGeo, 0x20281f, 0.7, { rot: [Math.PI / 2, 0, 0] });
+  addWire(shield, shieldGeo, gold, { rot: [Math.PI / 2, 0, 0] });
+  addWire(shield, new THREE.CylinderGeometry(0.5, 0.5, 0.14, 6), cyan, { rot: [Math.PI / 2, 0, 0], pos: [0, 0, 0.03], opacity: 0.6 });
+  addTriforce(shield, 0.25, gold, [0, 0.02, 0.1], [0, 0, 0], 0.8);
+  // A heavy stone blade.
+  const blade = new THREE.Group();
+  blade.position.set(1.25, 1.2, 0.1);
+  blade.rotation.z = -0.25;
+  body.add(blade);
+  addWire(blade, new THREE.BoxGeometry(0.18, 1.7, 0.28), stone, { pos: [0, -0.7, 0], opacity: 0.8 });
+  addWire(blade, new THREE.BoxGeometry(0.55, 0.14, 0.3), gold, { pos: [0, 0.1, 0] });
+  // Carved runes.
+  for (let i = 0; i < 3; i++) {
+    addPath(body, [
+      V(-0.5 + i * 0.5, 1.45, 0.47),
+      V(-0.3 + i * 0.5, 1.8, 0.47),
+      V(-0.5 + i * 0.5, 2.15, 0.47),
+    ], cyan, { opacity: 0.35 });
+  }
+
+  markShared(root);
+  return root;
+}
+
+function makePoe() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'body';
+  root.add(body);
+  const violet = 0xb78bff;
+  const pale = 0xe8dcff;
+  const cyan = 0x8ef7ff;
+
+  // Specter robe.
+  const robe = new THREE.ConeGeometry(0.7, 1.8, 6);
+  addFill(body, robe, 0x1d1136, 0.62, { pos: [0, 0.9, 0], scale: [1, 1, 0.9] });
+  addWire(body, robe, violet, { pos: [0, 0.9, 0], scale: [1, 1, 0.9], opacity: 0.95 });
+  // Hood.
+  addWire(body, new THREE.ConeGeometry(0.45, 0.85, 5), violet, { pos: [0, 1.85, 0.05], rot: [0.25, 0, 0] });
+  addFill(body, new THREE.IcosahedronGeometry(0.3), 0x0c0616, 0.8, { pos: [0, 1.65, 0.24], scale: [1, 1, 0.5] });
+  addGlow(body, cyan, 0.32, [-0.11, 1.68, 0.44], 0.95);
+  addGlow(body, violet, 0.3, [0.11, 1.68, 0.44], 0.85);
+  // Wispy tail.
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    addPath(body, [
+      V(Math.cos(a) * 0.32, 0.35, Math.sin(a) * 0.28),
+      V(Math.cos(a) * 0.55, -0.35, Math.sin(a) * 0.42),
+      V(Math.cos(a) * 0.3, -0.95 - i * 0.06, Math.sin(a) * 0.2),
+    ], violet, { opacity: 0.35 });
+  }
+  // Lantern arm and floating soul-light.
+  const arm = new THREE.Group();
+  arm.position.set(0.62, 1.2, 0.25);
+  body.add(arm);
+  addPath(arm, [V(0, 0, 0), V(0.18, -0.38, 0.12), V(0.12, -0.65, 0.22)], pale, { opacity: 0.55 });
+  const lantern = new THREE.Group();
+  lantern.name = 'lantern';
+  lantern.position.set(0.12, -0.8, 0.24);
+  arm.add(lantern);
+  addWire(lantern, new THREE.OctahedronGeometry(0.28), cyan, { scale: [1, 1.25, 1], opacity: 0.85 });
+  addGlow(lantern, cyan, 0.9, [0, 0, 0], 0.9);
+  const flame = addWire(lantern, new THREE.ConeGeometry(0.1, 0.3, 4), 0xd9ffff, { pos: [0, 0.42, 0], opacity: 0.7 });
+  flame.name = 'flame';
+  // Tiny hooked hands.
+  addWire(body, new THREE.ConeGeometry(0.1, 0.3, 4), pale, { pos: [-0.6, 1.15, 0.12], rot: [0, 0, -1.2], opacity: 0.7 });
+
+  markShared(root);
+  return root;
+}
+
+function makeDekuScrub() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'body';
+  body.position.y = 0.6;
+  root.add(body);
+  const green = 0x8dffae;
+  const dark = 0x2a6b3d;
+  const gold = 0xffdc7c;
+
+  // Bulb body.
+  const bulb = new THREE.IcosahedronGeometry(0.65, 1);
+  addFill(body, bulb, 0x123b22, 0.55, { scale: [1, 0.9, 0.9] });
+  addWire(body, bulb, green, { scale: [1, 0.9, 0.9], opacity: 0.95 });
+  // Stubby feet.
+  for (const side of [-1, 1]) {
+    addWire(body, new THREE.CylinderGeometry(0.1, 0.12, 0.35, 4), dark, { pos: [side * 0.22, -0.62, 0], opacity: 0.8 });
+  }
+  // Snout / seed gun.
+  addWire(body, new THREE.ConeGeometry(0.3, 0.7, 5), green, {
+    pos: [0, -0.02, 0.55],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1, 1, 0.75],
+  });
+  addPath(body, [V(0, 0.3, 0.3), V(0, 0.58, 0.62), V(0, 0.3, 0.82)], gold, { opacity: 0.65 });
+  // Leaf cap.
+  const leaf = new THREE.Group();
+  leaf.position.y = 0.55;
+  body.add(leaf);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const p1 = V(Math.cos(a) * 0.25, 0.1, Math.sin(a) * 0.18);
+    const p2 = V(Math.cos(a) * 1.0, 0.9, Math.sin(a) * 0.65);
+    const p3 = V(Math.cos(a + 0.6) * 0.45, 0.65, Math.sin(a + 0.6) * 0.4);
+    addPath(leaf, [p1, p2, p3, p1], green, { opacity: 0.6 });
+  }
+  addGlow(body, 0xff9bd4, 0.2, [-0.23, 0.3, 0.48], 0.8);
+  addGlow(body, 0xff9bd4, 0.2, [0.23, 0.3, 0.48], 0.8);
+  // A little wooden stem.
+  addWire(body, new THREE.CylinderGeometry(0.13, 0.18, 0.65, 4), 0x6b4b2a, { pos: [0, -0.5, 0], opacity: 0.7 });
+
+  markShared(root);
+  return root;
+}
+
+function makeLikeLike() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'body';
+  root.add(body);
+  const ochre = 0xd6a35d;
+  const dark = 0x6b3c20;
+  const purple = 0xb978d6;
+  const maw = 0x3a0f24;
+
+  // Stacked fleshy rings form the tube.
+  for (let i = 0; i < 5; i++) {
+    const y = 0.2 + i * 0.42;
+    const r = 0.75 + Math.sin(i * 1.4) * 0.12;
+    addWire(body, PRIM.torus, i === 4 ? ochre : purple, {
+      pos: [0, y, 0],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [r, r, 0.8],
+      opacity: i === 0 ? 0.4 : 0.55,
+    });
+    if (i > 0) {
+      addPath(body, [
+        V(-r, y - 0.2, 0),
+        V(0, y - 0.16, r * 0.8),
+        V(r, y - 0.2, 0),
+      ], dark, { opacity: 0.3 });
+    }
+  }
+  // Bulbous head and gaping maw.
+  addWire(body, new THREE.IcosahedronGeometry(1.05, 1), ochre, {
+    pos: [0, 2.15, 0],
+    scale: [1, 0.8, 0.9],
+    opacity: 0.85,
+  });
+  addFill(body, new THREE.IcosahedronGeometry(1.0, 1), 0x2a0f1c, 0.5, { pos: [0, 2.2, 0.1], scale: [0.9, 0.7, 0.65] });
+  addWire(body, new THREE.TorusGeometry(0.68, 0.16, 5, 12), ochre, { pos: [0, 2.15, 0.72], opacity: 0.85 });
+  addWire(body, new THREE.TorusGeometry(0.42, 0.1, 4, 10), maw, { pos: [0, 2.15, 0.85], opacity: 0.9 });
+  addGlow(body, 0xd07bff, 1.2, [0, 2.15, 0.9], 0.55);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    addTri(body, [
+      V(Math.cos(a) * 0.6, 2.15 + Math.sin(a) * 0.6, 0.78),
+      V(Math.cos(a + 0.16) * 0.45, 2.15 + Math.sin(a + 0.16) * 0.45, 1.02),
+      V(Math.cos(a + 0.3) * 0.55, 2.15 + Math.sin(a + 0.3) * 0.55, 0.78),
+    ], 0xfff1cf, 0.45);
+  }
+  // Two small eyes above the maw.
+  addGlow(body, 0xffce5c, 0.3, [-0.34, 2.85, 0.5], 0.85);
+  addGlow(body, 0xffce5c, 0.3, [0.34, 2.85, 0.5], 0.85);
+  // Tentacle fringe.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    addPath(body, [
+      V(Math.cos(a) * 0.9, 0.4, Math.sin(a) * 0.7),
+      V(Math.cos(a) * 1.3, -0.15, Math.sin(a) * 1.0),
+      V(Math.cos(a) * 1.05, -0.7, Math.sin(a) * 0.7),
+    ], dark, { opacity: 0.5 });
+  }
+  // Coin-like glints caught in its hide.
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    addWire(body, new THREE.OctahedronGeometry(0.11), 0xffdc7c, {
+      pos: [Math.cos(a) * 0.95, 1.15 + i * 0.28, Math.sin(a) * 0.8],
+      opacity: 0.7,
+    });
+  }
+
+  markShared(root);
+  return root;
+}
+
 /* ------------------------------------------------------------------ */
 /* GUARDIANS                                                          */
 /* ------------------------------------------------------------------ */
@@ -1081,6 +1313,189 @@ function makeGanon() {
   return root;
 }
 
+function makeDemise() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'body';
+  root.add(body);
+  const bone = 0xe9dac4;
+  const gold = 0xffd76e;
+  const dark = 0x1b0a10;
+  const red = 0xff2e62;
+  const ember = 0xff8a3d;
+
+  // A shroud of darkness and old war.
+  const shroud = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    shroud.push(V(Math.cos(a) * 3.1, -3.3, Math.sin(a) * 1.9));
+  }
+  addPath(body, shroud, red, { opacity: 0.25, closed: true });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const p = V(Math.cos(a) * 2.4, -1.2 + (i % 3) * 0.25, Math.sin(a) * 1.5);
+    batchlessBody(body, [
+      p,
+      p.clone().addScaledVector(V(Math.cos(a), 0, Math.sin(a)), 2.2).add(V(0, -1.5, 0)),
+      p.clone().addScaledVector(V(Math.cos(a + 0.5), 0, Math.sin(a + 0.5)), 3.4).add(V(0, -2.4, 0)),
+    ], i % 2 ? ember : red, 0.22);
+  }
+
+  // Skeletal lower torso.
+  for (let i = 0; i < 3; i++) {
+    addWire(body, new THREE.TorusGeometry(2.0 - i * 0.35, 0.11, 5, 18), bone, {
+      pos: [0, -1.5 + i * 0.7, 0],
+      rot: [Math.PI / 2, 0, 0],
+      scale: [1, 0.75, 1],
+      opacity: 0.55 - i * 0.1,
+    });
+  }
+  addFill(body, new THREE.ConeGeometry(2.1, 3.2, 6), 0x100509, 0.65, { pos: [0, -0.7, 0], rot: [Math.PI, 0, 0] });
+  addWire(body, new THREE.ConeGeometry(2.1, 3.2, 6), bone, { pos: [0, -0.7, 0], rot: [Math.PI, 0, 0], opacity: 0.35 });
+
+  // Torso: a cracked, blackened carapace.
+  const chest = new THREE.IcosahedronGeometry(2.5, 1);
+  addFill(body, chest, 0x15070c, 0.75, { pos: [0, 1.7, 0], scale: [1.12, 1.2, 0.82] });
+  addWire(body, chest, bone, { pos: [0, 1.7, 0], scale: [1.12, 1.2, 0.82], opacity: 0.7 });
+  addWire(body, chest, gold, { pos: [0, 1.7, 0], scale: [1.18, 1.26, 0.86], opacity: 0.16 });
+  for (let i = 0; i < 3; i++) {
+    addPath(body, [
+      V(-0.9 + i * 0.9, 3.0, 0.9),
+      V(-0.65 + i * 0.9, 2.3, 1.25),
+      V(-0.8 + i * 0.9, 1.4, 1.2),
+      V(-0.5 + i * 0.9, 0.7, 0.8),
+    ], i === 1 ? ember : red, { opacity: 0.5 });
+  }
+  // A sunken socket where the core will appear.
+  addWire(body, new THREE.TorusGeometry(1.05, 0.13, 5, 12), gold, { pos: [0, 1.8, 2.05], opacity: 0.45 });
+  addGlow(body, red, 2.2, [0, 1.8, 1.9], 0.2);
+  // Shoulder plates and spikes.
+  for (const side of [-1, 1]) {
+    addWire(body, new THREE.ConeGeometry(0.65, 2.2, 4), bone, {
+      pos: [side * 2.5, 2.9, 0.3],
+      rot: [0.2, 0, side * -1.0],
+      opacity: 0.7,
+    });
+    addWire(body, new THREE.IcosahedronGeometry(0.9, 0), dark, { pos: [side * 2.3, 2.1, 0.2], opacity: 0.5 });
+  }
+
+  // Arms. The right hand carries the demon blade.
+  const armL = new THREE.Group();
+  armL.name = 'mandL';
+  armL.position.set(-2.35, 2.5, 0.15);
+  armL.rotation.z = 0.35;
+  body.add(armL);
+  const armPts = [V(0, 0, 0), V(-0.65, -1.7, 0.35), V(-0.2, -3.2, 0.8), V(0.35, -3.7, 1.1)];
+  addPath(armL, armPts, bone, { opacity: 0.55 });
+  addPath(armL, armPts.map((q) => q.clone().add(V(0.25, 0, 0))), red, { opacity: 0.25 });
+  for (let i = 0; i < 3; i++) {
+    addPath(armL, [V(0.35, -3.7, 1.1), V(0.8 + i * 0.3, -4.2 - i * 0.2, 1.4 + i * 0.15)], gold, { opacity: 0.5 });
+  }
+
+  const armR = new THREE.Group();
+  armR.name = 'mandR';
+  armR.position.set(2.35, 2.5, 0.15);
+  armR.rotation.z = -0.35;
+  body.add(armR);
+  const armRpts = [V(0, 0, 0), V(0.7, -1.6, 0.3), V(0.2, -3.0, 0.75), V(-0.3, -3.5, 1.0)];
+  addPath(armR, armRpts, bone, { opacity: 0.55 });
+  addPath(armR, armRpts.map((q) => q.clone().add(V(-0.25, 0, 0))), ember, { opacity: 0.25 });
+  // Giant sword.
+  const sword = new THREE.Group();
+  sword.name = 'demonSword';
+  sword.position.set(-0.4, -3.5, 1.0);
+  sword.rotation.set(0.4, 0, -0.7);
+  armR.add(sword);
+  addWire(sword, new THREE.BoxGeometry(0.8, 8.5, 0.28), dark, { pos: [0, -3.1, 0], opacity: 0.8 });
+  addWire(sword, new THREE.BoxGeometry(0.16, 8.0, 0.34), red, { pos: [0, -3.1, 0.02] });
+  addPath(sword, [V(-0.35, 1.2, 0), V(0.35, 1.2, 0)], gold, { opacity: 0.8 });
+  addWire(sword, new THREE.BoxGeometry(2.2, 0.35, 0.35), bone, { pos: [0, 1.35, 0], opacity: 0.85 });
+  addPath(sword, [V(0, 1.5, 0), V(0, 3.0, 0)], gold, { opacity: 0.6 });
+  addWire(sword, new THREE.OctahedronGeometry(0.25), red, { pos: [0, 3.1, 0], opacity: 0.9 });
+  addGlow(sword, red, 2.6, [0, 2.4, 0], 0.35);
+
+  // The horned skull.
+  const head = new THREE.Group();
+  head.name = 'head';
+  head.position.set(0, 4.25, 0.15);
+  body.add(head);
+  const skull = new THREE.IcosahedronGeometry(1.35, 1);
+  addFill(head, skull, 0x160c08, 0.72, { scale: [1, 0.92, 0.9] });
+  addWire(head, skull, bone, { scale: [1, 0.92, 0.9], opacity: 0.9 });
+  addWire(head, new THREE.ConeGeometry(0.45, 1.25, 5), bone, {
+    pos: [0, -0.85, 0.9],
+    rot: [Math.PI / 2, 0, 0],
+    scale: [1.4, 1, 0.7],
+    opacity: 0.7,
+  });
+  const jaw = new THREE.Group();
+  jaw.name = 'jaw';
+  jaw.position.set(0, -0.9, 0.25);
+  head.add(jaw);
+  addWire(jaw, new THREE.BoxGeometry(1.5, 0.35, 1.25), bone, { pos: [0, -0.35, 0.45], opacity: 0.7 });
+  for (let i = 0; i < 7; i++) {
+    addTri(jaw, [
+      V(-0.65 + i * 0.22, -0.15, 0.85),
+      V(-0.55 + i * 0.22, 0.45, 1.05),
+      V(-0.72 + i * 0.22, -0.15, 1.15),
+    ], 0xfff0d4, 0.55);
+  }
+  addGlow(head, ember, 0.9, [-0.5, 0.2, 0.95], 0.9);
+  addGlow(head, red, 0.9, [0.5, 0.2, 0.95], 0.9);
+  // Horns, sweeping back like a broken crown.
+  for (const side of [-1, 1]) {
+    addPath(head, [
+      V(side * 0.9, 0.75, 0.1),
+      V(side * 2.6, 2.2, -0.2),
+      V(side * 4.2, 3.0, -1.0),
+      V(side * 5.0, 2.4, -1.8),
+    ], bone, { opacity: 0.8 });
+    addPath(head, [
+      V(side * 1.4, 1.02, 0.1),
+      V(side * 2.4, 1.8, -0.1),
+      V(side * 3.0, 2.0, -0.4),
+    ], gold, { opacity: 0.5 });
+  }
+  // Crown of embers.
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    addPath(head, [
+      V(Math.cos(a) * 1.0, 0.7, Math.sin(a) * 0.5),
+      V(Math.cos(a) * 2.2, 2.2 + (i % 2) * 1.2, Math.sin(a) * 1.0),
+      V(Math.cos(a) * 2.8, 3.4 + (i % 3) * 1.0, Math.sin(a) * 1.4),
+    ], i % 2 ? ember : red, { opacity: 0.3 });
+  }
+  // Crest of the sealed king, inverted and burning.
+  const crest = addTriforce(head, 0.6, red, [0, 0.1, 1.1], [0, 0, Math.PI], 0.7);
+  crest.name = 'crest';
+  // Pauldron chains.
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      addWire(body, new THREE.OctahedronGeometry(0.16), i % 2 ? gold : bone, {
+        pos: [side * (1.7 + i * 0.35), 3.0 - i * 0.5, 0.8 - i * 0.15],
+        opacity: 0.5,
+      });
+    }
+  }
+  addGlow(body, red, 7.5, [0, 1.7, 0.5], 0.15);
+  addGlow(head, 0xffdc7c, 3.5, [0, 0.4, 0.4], 0.12);
+
+  markShared(root);
+  return root;
+}
+
+function batchlessBody(parent, points, color, opacity) {
+  const vecs = points.map((p) => (p.isVector3 ? p : V(p[0], p[1], p[2])));
+  const segs = [];
+  for (let i = 0; i < vecs.length - 1; i++) segs.push(vecs[i], vecs[i + 1]);
+  const geo = new THREE.BufferGeometry().setFromPoints(segs);
+  geo.userData.shared = true;
+  const line = new THREE.LineSegments(geo, lineMaterial(color, { opacity }));
+  line.renderOrder = 3;
+  parent.add(line);
+  return line;
+}
+
 /* ------------------------------------------------------------------ */
 /* caches                                                             */
 /* ------------------------------------------------------------------ */
@@ -1093,6 +1508,10 @@ const enemyFactories = {
   stalfos: makeStalfos,
   beamos: makeBeamos,
   wizzrobe: makeWizzrobe,
+  armos: makeArmos,
+  poe: makePoe,
+  dekuScrub: makeDekuScrub,
+  likelike: makeLikeLike,
 };
 
 export function createEnemyModel(type) {
@@ -1110,6 +1529,7 @@ const bossFactories = {
   bloom: makeBloom,
   dodongo: makeDodongo,
   ganon: makeGanon,
+  demise: makeDemise,
 };
 
 export function createBossModel(type) {

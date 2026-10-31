@@ -114,7 +114,13 @@ export class World {
     this.shakeAmount = 0;
     this.fovPunch = 0;
     this.baseFov = 62;
+    this.shakeScale = 1;
+    this.fovScale = 1;
+    this.quality = 'high';
+    this.qualityCap = 1.75;
+    this.qualityPr = Math.min(window.devicePixelRatio || 1, this.qualityCap);
     this.initialized = false;
+    this._stageBloom = 1.0;
     const mkFrame = () => ({
       pos: new THREE.Vector3(),
       fwd: new THREE.Vector3(),
@@ -239,9 +245,10 @@ export class World {
     this.moonLine.material.color.set(moonTint);
     this.triforceLines.forEach((line, i) => line.material.color.set(i === 1 ? p.primary : p.accent));
     this.celestialMats[0].color.set(moonTint);
-    this.bloom.strength = stage.id === 'castle' ? 0.95 : stage.id === 'woods' ? 0.72 : 0.8;
+    this._stageBloom = stage.id === 'castle' || stage.id === 'sacred' ? 0.95 : stage.id === 'woods' ? 0.72 : 0.8;
     this.bloom.radius = 0.4;
     this.bloom.threshold = 0.72;
+    this.applyQuality(this.quality);
     this.initialized = false;
     this.smoothLook.set(0, 3, -20);
     this.roll = 0;
@@ -249,6 +256,8 @@ export class World {
   }
 
   shake(amount = 0.3, duration = 0.35) {
+    amount *= this.shakeScale;
+    if (amount < 0.02) return;
     if (amount >= this.shakeAmount || this.shakeTime <= 0) {
       this.shakeAmount = amount;
       this.shakeDuration = duration;
@@ -259,7 +268,7 @@ export class World {
   }
 
   punchFov(amount = 2) {
-    this.fovPunch = Math.min(7, this.fovPunch + amount);
+    this.fovPunch = Math.min(7, this.fovPunch + amount * this.fovScale);
   }
 
   /**
@@ -340,6 +349,15 @@ export class World {
     this.fovPunch = Math.max(0, this.fovPunch - dt * 18);
   }
 
+  applyQuality(level = 'high') {
+    this.quality = ['low', 'medium', 'high'].includes(level) ? level : 'high';
+    this.qualityCap = this.quality === 'low' ? 1 : this.quality === 'medium' ? 1.35 : 1.75;
+    this.bloom.enabled = this.quality !== 'low';
+    const multiplier = this.quality === 'low' ? 0.5 : this.quality === 'medium' ? 0.75 : 1;
+    this.bloom.strength = this._stageBloom * multiplier;
+    this.resize();
+  }
+
   render() {
     this.composer.render();
   }
@@ -347,7 +365,8 @@ export class World {
   resize() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const pr = Math.min(window.devicePixelRatio || 1, 1.75);
+    const pr = Math.min(window.devicePixelRatio || 1, this.qualityCap);
+    this.qualityPr = pr;
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.composer.setPixelRatio(pr);

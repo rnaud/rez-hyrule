@@ -1520,6 +1520,254 @@ function buildCastle(batch, rail, p, rng, scene, dyn) {
   addMaliceEye(batch, af, 0, 14, 3.2, p.malice, p.accent);
 }
 
+function addSacredShard(scene, dyn, frame, lateral, height, size, p, rng) {
+  const group = new THREE.Group();
+  const center = at(frame, lateral, height);
+  group.position.copy(center);
+  const points = [];
+  // A faceted, floating splinter of the temple.
+  const sides = 5;
+  const topY = size * (1.1 + rng.next() * 0.8);
+  const botY = -size * (0.7 + rng.next() * 0.5);
+  const ring = [];
+  for (let i = 0; i < sides; i++) {
+    const a = (i / sides) * Math.PI * 2 + rng.next() * 0.2;
+    const r = size * (0.5 + rng.next() * 0.3);
+    ring.push(new THREE.Vector3(Math.cos(a) * r, (rng.next() - 0.5) * size * 0.25, Math.sin(a) * r));
+  }
+  const top = new THREE.Vector3((rng.next() - 0.5) * size * 0.2, topY, (rng.next() - 0.5) * size * 0.2);
+  const bottom = new THREE.Vector3(0, botY, 0);
+  for (let i = 0; i < sides; i++) {
+    points.push(ring[i], ring[(i + 1) % sides]);
+    points.push(ring[i], top);
+    points.push(ring[(i + 1) % sides], top); // duplicate-safe visual facets
+    points.push(ring[i], bottom);
+    points.push(top, ring[i]);
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(points);
+  const line = new THREE.LineSegments(geo, lineMaterial(rng.next() < 0.5 ? p.primary : p.secondary, { opacity: 0.55 }));
+  line.renderOrder = 2;
+  group.add(line);
+  // A faint inner glyph.
+  const glyph = new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(ring.map((q) => q.clone().multiplyScalar(0.45))),
+    lineMaterial(p.accent, { opacity: 0.35 })
+  );
+  group.add(glyph);
+  scene.add(group);
+  dyn.push({
+    obj: group,
+    type: 'bob',
+    baseY: center.y,
+    amp: 0.6 + rng.next() * 1.2,
+    speed: 0.3 + rng.next() * 0.4,
+    phase: rng.next() * Math.PI * 2,
+    spin: (rng.next() - 0.5) * 0.16,
+  });
+}
+
+function buildSacred(batch, rail, p, rng, scene, dyn) {
+  addGround(batch, rail, {
+    width: 34,
+    step: 10,
+    lats: [0.12, 0.3, 0.52, 0.76, 0.95],
+    color: p.secondary,
+    intensity: 0.16,
+    edgeColor: p.accent,
+    edgeIntensity: 0.9,
+    sag: 1.1,
+    pathHalf: 3.6,
+  });
+  addBraid(batch, rail, { side: -1, lateral: 7.5, color: p.accent, intensity: 0.18 });
+  addBraid(batch, rail, { side: 1, lateral: 9, color: p.cyan, intensity: 0.12 });
+
+  const lightPositions = [];
+  const fireflyPositions = [];
+
+  // The road of light: diamond sigils and worn temple steps.
+  for (let d = 16; d < rail.length; d += 18) {
+    const f = rail.frameAt(d);
+    const c = at(f, 0, 0.03);
+    const s = 0.5;
+    polyWorld(batch, [
+      c.clone().addScaledVector(f.right, -s).addScaledVector(f.fwd, s * 0.65),
+      c.clone().addScaledVector(f.right, s).addScaledVector(f.fwd, s * 0.65),
+      c.clone().addScaledVector(f.right, 0).addScaledVector(f.fwd, -s * 0.65),
+    ], p.accent, 0.24, true);
+    if (Math.floor(d / 18) % 3 === 0) {
+      batch.seg(at(f, -2.8, 0.04), at(f, 2.8, 0.04), p.primary, 0.12);
+    }
+  }
+
+  // A colonnade of gold and glass.
+  for (let d = 18; d < rail.length + 70; d += 22) {
+    const f = rail.frameAt(d);
+    for (const side of [-1, 1]) {
+      const lat = side * (9.5 + (Math.floor(d / 22) % 3) * 1.7);
+      addColumn(batch, f, lat, {
+        color: p.secondary,
+        accent: Math.floor(d / 22) % 4 === 0 ? p.accent : p.primary,
+        height: 9 + rng.next() * 4,
+        broken: Math.floor(d / 22) % 7 === 0,
+        rng,
+      });
+      // floating halo above each column
+      batch.circle(at(f, lat, 10 + rng.next() * 3), 1.4, f.right, f.fwd, p.primary, 0.22, 10);
+    }
+    if (Math.floor(d / 22) % 2 === 0) {
+      polyWorld(batch, arcPoints(at(f, 0, 12), 11, f.right, f.up, 0, Math.PI, 16), p.secondary, 0.14);
+    }
+  }
+
+  // Colossal gates, shattered mirrors and drifting splinters.
+  for (let d = 100; d < rail.length; d += 190) {
+    addGate(batch, rail, d, { color: p.secondary, accent: p.accent, width: 6.2, height: 10.5, style: 'stone', rng });
+    if ((d / 190) % 2 < 1) {
+      addGiantGate(batch, rail, d + 60, { color: p.secondary, accent: p.accent, width: 12, height: 17 });
+    }
+  }
+  for (let d = 60; d < rail.length; d += 32) {
+    const f = rail.frameAt(d);
+    const side = rng.next() < 0.5 ? -1 : 1;
+    addSacredShard(scene, dyn, f, side * (15 + rng.next() * 18), 5 + rng.next() * 18, 2 + rng.next() * 4, p, rng);
+  }
+
+  // Mirror-glass monoliths, standing in the shallows of heaven.
+  for (let d = 120; d < rail.length; d += 130) {
+    const f = rail.frameAt(d);
+    const side = rng.next() < 0.5 ? -1 : 1;
+    const lat = side * (22 + rng.next() * 15);
+    const base = at(f, lat, 0);
+    const h = 7 + rng.next() * 10;
+    const width = 2.5 + rng.next() * 2;
+    const top = base.clone().addScaledVector(f.up, h);
+    polyWorld(batch, [
+      base.clone().addScaledVector(f.right, -width),
+      top.clone().addScaledVector(f.right, -width * 0.35),
+      top.clone().addScaledVector(f.right, width * 0.55),
+      base.clone().addScaledVector(f.right, width),
+    ], p.cyan, 0.35, true);
+    for (let i = 0; i < 4; i++) {
+      const a = rng.next() * Math.PI * 2;
+      const q = base.clone().addScaledVector(f.up, rng.next() * h).addScaledVector(f.right, Math.cos(a) * width);
+      batch.seg(q, q.clone().addScaledVector(f.right, Math.sin(a) * 4).addScaledVector(f.up, 2), p.accent, 0.2);
+    }
+  }
+
+  // The Triforce, written large in the vault of the realm.
+  for (let d = 380; d < rail.length; d += 620) {
+    const f = rail.frameAt(d);
+    const c = at(f, 0, 37);
+    const s = 12;
+    const tri = (cx, cy, size) => {
+      polyWorld(batch, [
+        c.clone().addScaledVector(f.right, cx).addScaledVector(f.up, cy + size),
+        c.clone().addScaledVector(f.right, cx - size * 0.86).addScaledVector(f.up, cy - size * 0.5),
+        c.clone().addScaledVector(f.right, cx + size * 0.86).addScaledVector(f.up, cy - size * 0.5),
+      ], p.accent, 0.5, true);
+    };
+    tri(0, s * 0.6, s * 0.5);
+    tri(-s * 0.48, -s * 0.22, s * 0.5);
+    tri(s * 0.48, -s * 0.22, s * 0.5);
+    batch.circle(c, 28, f.right, f.up, p.primary, 0.1, 40);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      batch.circle(c.clone().addScaledVector(f.right, Math.cos(a) * 32).addScaledVector(f.up, Math.sin(a) * 32), 9, f.right, f.up, p.secondary, 0.2, 28);
+      const rp = at(f, Math.cos(a) * 18, 28 + Math.sin(a) * 8);
+      lightPositions.push(rp.x, rp.y, rp.z);
+    }
+  }
+
+  // Vertical shafts of prayer.
+  for (let d = 40; d < rail.length; d += 46) {
+    const f = rail.frameAt(d);
+    const side = Math.floor(d / 46) % 2 === 0 ? -1 : 1;
+    const base = at(f, side * (11 + rng.next() * 12), 0);
+    const h = 10 + rng.next() * 14;
+    polyWorld(batch, [
+      base,
+      base.clone().addScaledVector(f.up, h).addScaledVector(f.right, (rng.next() - 0.5) * 2),
+    ], p.primary, 0.22);
+    if (Math.floor(d / 46) % 3 === 0) {
+      batch.circle(base, 1.2, f.right, f.fwd, p.accent, 0.28, 12);
+      lightPositions.push(base.x, base.y + 1, base.z);
+    }
+  }
+
+  // Distant towers of the heavenly city.
+  for (let i = 0; i < 5; i++) {
+    addSpire(batch, rail, rail.length * (0.12 + i * 0.18), p, rng, i % 2 ? 1 : -1, 38 + rng.next() * 26);
+  }
+
+  // Glass trees: simple cyan/gold shrubs for the side of the road.
+  for (let d = 45; d < rail.length; d += 34) {
+    const f = rail.frameAt(d);
+    const side = rng.next() < 0.5 ? -1 : 1;
+    const base = at(f, side * (5.5 + rng.next() * 8), 0);
+    const h = 2.5 + rng.next() * 3.5;
+    const top = base.clone().addScaledVector(f.up, h);
+    batch.seg(base, top, p.secondary, 0.35);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const c = top.clone().addScaledVector(f.up, 0.4 + i * 0.5);
+      batch.circle(c, 1.2, f.right, f.up, i % 2 ? p.accent : p.cyan, 0.25, 7);
+      batch.seg(c, c.clone().addScaledVector(f.right, Math.cos(a) * 1.5).addScaledVector(f.fwd, Math.sin(a) * 1.2), p.primary, 0.2);
+    }
+  }
+
+  // Floating lights and sacred dust.
+  for (let i = 0; i < 130; i++) {
+    const d = rng.next() * rail.length;
+    const f = rail.frameAt(d);
+    const c = at(f, (rng.next() - 0.5) * 30, 2 + rng.next() * 18);
+    fireflyPositions.push(c.x, c.y, c.z);
+  }
+  const fireflies = buildPoints(fireflyPositions, p.accent, 1.2, 0.65);
+  scene.add(fireflies);
+  dyn.push({ obj: fireflies, type: 'twinkle', base: 0.65, speed: 1.1 });
+  const lamps = buildPoints(lightPositions, p.primary, 2.2, 0.5);
+  scene.add(lamps);
+  dyn.push({ obj: lamps, type: 'twinkle', base: 0.5 });
+
+  // A grand ring and broken mirror at the boss arena.
+  const af = rail.frameAt(rail.length - 230);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const q = at(af, Math.cos(a) * 16, 0.2);
+    batch.circle(q, 1.2, af.right, af.fwd, p.accent, 0.35, 8);
+    addColumn(batch, af, Math.cos(a) * 16, {
+      color: p.secondary,
+      accent: p.primary,
+      height: 11 + (i % 3) * 2,
+      broken: i % 4 === 0,
+      rng,
+    });
+  }
+  batch.circle(at(af, 0, 0.06), 24, af.right, af.fwd, p.primary, 0.25, 48);
+  batch.circle(at(af, 0, 0.08), 17, af.right, af.fwd, p.accent, 0.2, 48);
+  addTriforce(batch, af, 6, p.accent);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    addSacredShard(scene, dyn, af, Math.cos(a) * 22, 8 + i * 2, 3 + i * 0.5, p, rng);
+  }
+
+  for (let d = 260; d < rail.length; d += 280) dyn.push(makeRuneRing(rail, d, { radius: 8, color: p.accent, accent: p.cyan, height: 7, speed: 0.22 }, scene));
+}
+
+function addTriforce(batch, frame, size, color) {
+  const c = at(frame, 0, 0.1);
+  const tri = (cx, cy, s) => {
+    polyWorld(batch, [
+      c.clone().addScaledVector(frame.right, cx).addScaledVector(frame.fwd, cy + s),
+      c.clone().addScaledVector(frame.right, cx - s * 0.86).addScaledVector(frame.fwd, cy - s * 0.5),
+      c.clone().addScaledVector(frame.right, cx + s * 0.86).addScaledVector(frame.fwd, cy - s * 0.5),
+    ], color, 0.6, true);
+  };
+  tri(0, size * 0.6, size * 0.5);
+  tri(-size * 0.48, -size * 0.22, size * 0.5);
+  tri(size * 0.48, -size * 0.22, size * 0.5);
+}
+
 /* ------------------------------------------------------------------ */
 /* public builder                                                     */
 /* ------------------------------------------------------------------ */
@@ -1539,6 +1787,7 @@ export function buildEnvironment(scene, stage, rail) {
     woods: buildWoods,
     mountain: buildMountain,
     castle: buildCastle,
+    sacred: buildSacred,
   };
   (builders[stage.id] || buildField)(batch, rail, p, rng, group, dyn);
 
@@ -1581,6 +1830,9 @@ export function buildEnvironment(scene, stage, rail) {
       if (!d.obj) continue;
       if (d.type === 'spin') {
         d.obj.rotateZ(d.speed * dt);
+      } else if (d.type === 'bob') {
+        d.obj.position.y = d.baseY + Math.sin(elapsed * d.speed + d.phase) * d.amp;
+        d.obj.rotation.y += (d.spin || 0) * dt;
       } else if (d.type === 'twinkle') {
         const mat = d.obj.material;
         if (mat) mat.opacity = clamp(d.base + Math.sin(elapsed * 1.7 + d.obj.id) * 0.16, 0, 1);

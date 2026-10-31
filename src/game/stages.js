@@ -1,5 +1,5 @@
 /**
- * The four rails of the legend. Each stage is a palette, a song,
+ * The five rails of the legend. Each stage is a palette, a song,
  * a skyline, a bestiary and a guardian waiting at the end of the line.
  */
 
@@ -38,6 +38,13 @@ export const STAGES = [
         [10, 'M'],
       ],
       motif: [4, null, 5, null, 7, null, 5, 4, 2, null, 4, null, 5, null, 4, null],
+    },
+    bossMusic: {
+      bpm: 138,
+      root: 48,
+      mode: 'phrygian',
+      progression: [[0, 'm'], [1, 'M'], [0, 'm'], [10, 'M']],
+      motif: [0, null, 4, 3, 2, null, 1, 0, 4, null, 3, 2, 1, null, 0, null],
     },
     story: {
       poem:
@@ -103,6 +110,13 @@ export const STAGES = [
       ],
       motif: [0, null, 2, null, 4, 3, 2, null, 1, null, 3, null, 4, null, 2, null],
     },
+    bossMusic: {
+      bpm: 126,
+      root: 43,
+      mode: 'aeolian',
+      progression: [[0, 'm'], [8, 'M'], [5, 'm'], [7, 'm']],
+      motif: [0, 4, null, 2, 1, null, 0, 4, 5, null, 3, 2, 1, null, 0, null],
+    },
     story: {
       poem:
         "The forest does not forgive a wandering mind.<br />Every lantern is a heartbeat; every shadow, a debt.<br />Follow the song through the hollow dark,<br /><span class='hl'>and do not look back.</span>",
@@ -112,7 +126,7 @@ export const STAGES = [
         { at: 0.7, text: 'The path remembers you. <span class="green">Try to be worth remembering.</span>' },
       ],
     },
-    enemies: { keese: 3, baba: 3, wizzrobe: 2, octorok: 1 },
+    enemies: { keese: 2, baba: 2, wizzrobe: 1, poe: 2, dekuScrub: 2, octorok: 1 },
     boss: {
       type: 'bloom',
       name: 'THE ANCIENT BLOOM',
@@ -167,6 +181,13 @@ export const STAGES = [
       ],
       motif: [0, 0, null, 1, 0, null, 4, 3, 2, null, 1, 0, null, 4, null, 3],
     },
+    bossMusic: {
+      bpm: 142,
+      root: 40,
+      mode: 'phrygian',
+      progression: [[0, 'm'], [1, 'M'], [8, 'M'], [10, 'M']],
+      motif: [0, 1, null, 0, 4, 3, null, 1, 0, null, 4, 3, 2, 1, null, 0],
+    },
     story: {
       poem:
         "The mountain breathes in embers.<br />Its bones are older than the crown,<br />and its fire remembers every oath broken.<br /><span class='hl'>Climb.</span> <span class='green'>The Triforce hungers for the sun.</span>",
@@ -176,7 +197,7 @@ export const STAGES = [
         { at: 0.68, text: 'The forge is lit. <span class="gold">Something is being made of you.</span>' },
       ],
     },
-    enemies: { stalfos: 3, beamos: 2, keese: 2, octorok: 1, baba: 1 },
+    enemies: { stalfos: 2, beamos: 1, armos: 2, keese: 2, octorok: 1, dekuScrub: 1 },
     boss: {
       type: 'dodongo',
       name: 'KING DODONGO · THE FURNACE',
@@ -198,12 +219,12 @@ export const STAGES = [
   },
   {
     id: 'castle',
-    chapter: 'FINAL CHAPTER · THE MALICE THRONE',
+    chapter: 'CHAPTER IV · THE MALICE THRONE',
     name: 'HYRULE CASTLE',
     epithet: 'THE MALICE THRONE',
-    clearTitle: 'THE MALICE ENDS',
-    nextLabel: 'Awaken',
-    triforcePiece: 'THE TRIFORCE',
+    clearTitle: 'THE THRONE IS EMPTY',
+    nextLabel: 'Enter the Sacred Realm',
+    triforcePiece: null,
     palette: {
       bg: 0x060208,
       fog: 0x14051a,
@@ -231,6 +252,13 @@ export const STAGES = [
       ],
       motif: [0, 4, 3, 2, null, 1, null, 0, 3, 4, null, 5, 4, 3, 2, null],
     },
+    bossMusic: {
+      bpm: 150,
+      root: 38,
+      mode: 'harmonic',
+      progression: [[0, 'm'], [8, 'M'], [7, 'M'], [1, 'M']],
+      motif: [0, 4, 3, 2, 1, null, 0, 4, 5, null, 4, 3, 2, 1, null, 0],
+    },
     story: {
       poem:
         "Once, this was a promise made of white stone.<br />Now it is a wound with windows.<br />Beyond the gate waits the Malice Eye —<br /><span class='hl'>and the last fragment of the light.</span>",
@@ -240,7 +268,7 @@ export const STAGES = [
         { at: 0.65, text: 'The Triforce does not choose the worthy. <span class="gold">It chooses the willing.</span>' },
       ],
     },
-    enemies: { stalfos: 2, wizzrobe: 2, beamos: 2, keese: 2, baba: 1, octorok: 2 },
+    enemies: { stalfos: 2, wizzrobe: 1, beamos: 1, keese: 2, likelike: 2, octorok: 1 },
     boss: {
       type: 'ganon',
       name: 'THE MALICE EYE · GANON',
@@ -260,6 +288,83 @@ export const STAGES = [
     introBoss: 'The throne is empty. The castle is not. The last darkness has a heartbeat.',
     outro: 'The Malice Eye closes. For one long moment, the whole kingdom is golden.',
   },
+  {
+    id: 'sacred',
+    chapter: 'FINAL CHAPTER · THE SACRED REALM',
+    name: 'THE SACRED REALM',
+    epithet: 'THE TRIFORCE’S GATE',
+    clearTitle: 'THE LEGEND ENDS',
+    nextLabel: 'Return to the light',
+    triforcePiece: null,
+    palette: {
+      bg: 0x02060a,
+      fog: 0x091821,
+      fogNear: 42,
+      fogFar: 265,
+      primary: 0xffe2a1,
+      secondary: 0x8edff0,
+      accent: 0xfff5d4,
+      malice: 0xff2e62,
+      cyan: 0x9df5ff,
+      warm: 0xffd98a,
+      ground: 0xffdfa0,
+    },
+    ambient: 0x1c2627,
+    rail: { seed: 101, span: 1880, swing: 20, rise: 9, climb: 12, freqs: [0.84, 2.08], phase: 2.7, straightTail: 0.16 },
+    music: {
+      bpm: 144,
+      root: 50,
+      mode: 'lydian',
+      progression: [
+        [0, 'M'],
+        [7, 'M'],
+        [5, 'M'],
+        [2, 'm'],
+      ],
+      motif: [4, null, 6, null, 7, null, 4, 2, 4, null, 2, null, 6, 4, null, 7],
+    },
+    bossMusic: {
+      bpm: 156,
+      root: 36,
+      mode: 'phrygian',
+      progression: [
+        [0, 'm'],
+        [1, 'M'],
+        [0, 'm'],
+        [10, 'M'],
+      ],
+      motif: [0, 0, 4, 3, 2, 1, null, 0, 4, 5, null, 4, 3, 2, 1, null],
+    },
+    story: {
+      poem:
+        "Beyond the last gate, the world forgets its own shape.<br />Here the Triforce was forged, and here the first malice was buried.<br />Three lights in your hand, and one demon at the end of the line.<br /><span class='hl'>Go on, hero.</span> <span class='green'>Finish the legend.</span>",
+      quotes: [
+        { at: 0.1, text: 'The air is gold. Even the dark has learned to shine.' },
+        { at: 0.38, text: 'Every seal is a promise. <span class="gold">Some promises break.</span>' },
+        { at: 0.66, text: 'The Triforce is listening. It has been listening the whole time.' },
+      ],
+    },
+    enemies: { poe: 2, armos: 2, dekuScrub: 2, likelike: 2, wizzrobe: 1, beamos: 1 },
+    boss: {
+      type: 'demise',
+      name: 'DEMISE · THE IMPRISONED',
+      shortName: 'DEMISE',
+      model: 'demise',
+      phaseNames: ['THE SEAL BREAKS', 'THE DEMON RISES', 'THE TRIFORCE’S ANSWER'],
+      weakspots: 3,
+      weakspotHp: 3,
+      coreHp: 12,
+      orbitRadius: 9.4,
+      orbitSpeed: 0.42,
+      scale: 1.22,
+      color: 0xff2e62,
+      sub: 'SHATTER THE DEMON’S SEALS',
+      roarLine: 'The seal splits, and something older than Hyrule opens its eyes.',
+      finalBoss: true,
+    },
+    introBoss: 'The Sacred Realm kneels. The Imprisoned takes his last breath of an old war.',
+    outro: 'The demon falls. The Triforce answers. Hyrule will remember this dawn.',
+  },
 ];
 
 export const STAGE_DIFFICULTY = [
@@ -267,5 +372,6 @@ export const STAGE_DIFFICULTY = [
   { spawnRate: 1.95, maxActive: 10, relativeSpeed: 1.06, hpBonus: 0 },
   { spawnRate: 1.8, maxActive: 11, relativeSpeed: 1.12, hpBonus: 0 },
   { spawnRate: 1.65, maxActive: 12, relativeSpeed: 1.18, hpBonus: 1 },
+  { spawnRate: 1.5, maxActive: 12, relativeSpeed: 1.24, hpBonus: 1 },
 ];
 

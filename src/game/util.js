@@ -32,6 +32,30 @@ export const pad = (n, width = 7) => String(Math.max(0, Math.floor(n))).padStart
 export const roman = (n) =>
   ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][n] || String(n);
 
+export function hashString(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export function localDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function prettyDate(dateKey) {
+  if (!dateKey) return '';
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) return dateKey;
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  return `${months[m - 1]} ${String(d).padStart(2, '0')} · ${y}`;
+}
+
 export const formatTime = (seconds) => {
   const total = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;

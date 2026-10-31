@@ -103,6 +103,75 @@ export const ENEMY_TYPES = {
     maxShots: 2,
     targets: true,
   },
+  armos: {
+    label: 'Armos',
+    hp: 5,
+    score: 330,
+    rupees: 4,
+    radius: 2.2,
+    scale: 1.45,
+    approachSpeed: 18,
+    station: 30,
+    dwell: [5.8, 7.0],
+    wobble: 0.4,
+    wobbleSpeed: 0.35,
+    heightWobble: 0.12,
+    armor: 3,
+    targets: true,
+  },
+  poe: {
+    label: 'Poe',
+    hp: 2,
+    score: 270,
+    rupees: 3,
+    radius: 1.5,
+    scale: 1.25,
+    approachSpeed: 26,
+    station: 36,
+    dwell: [5.2, 6.4],
+    wobble: 2.4,
+    wobbleSpeed: 0.9,
+    heightWobble: 1.2,
+    fireRate: [2.0, 2.8],
+    maxShots: 1,
+    phaseEvery: 2.4,
+    phaseDuration: 1.25,
+    targets: true,
+  },
+  dekuScrub: {
+    label: 'Deku Scrub',
+    hp: 2,
+    score: 190,
+    rupees: 2,
+    radius: 1.3,
+    scale: 1.2,
+    approachSpeed: 28,
+    station: 31,
+    dwell: [4.4, 5.5],
+    wobble: 1.2,
+    wobbleSpeed: 0.8,
+    heightWobble: 0.4,
+    fireRate: [1.2, 1.8],
+    maxShots: 1,
+    fires: 3,
+    targets: true,
+  },
+  likelike: {
+    label: 'Like Like',
+    hp: 6,
+    score: 380,
+    rupees: 5,
+    radius: 2.3,
+    scale: 1.5,
+    approachSpeed: 15,
+    station: 25,
+    dwell: [6.2, 7.6],
+    wobble: 0.9,
+    wobbleSpeed: 0.4,
+    heightWobble: 0.2,
+    stealsRupees: 25,
+    targets: true,
+  },
 };
 
 let nextEnemyId = 1;
@@ -122,7 +191,8 @@ export class Enemy {
     this.height = opts.height ?? 0;
     this.baseLateral = this.lateral;
     this.baseHeight = this.height;
-    this.phase = opts.phase ?? Math.random() * Math.PI * 2;
+    const rand = () => game.random?.() ?? Math.random();
+    this.phase = opts.phase ?? rand() * Math.PI * 2;
     this.hp = cfg.hp + game.difficulty.hpBonus;
     this.maxHp = this.hp;
     this.alive = true;
@@ -130,16 +200,22 @@ export class Enemy {
     this.spawnT = 0;
     this.hitFlash = 0;
     this.mode = 'approach'; // approach -> hover -> leave
-    this.station = cfg.station * (0.9 + Math.random() * 0.2);
-    this.dwell = cfg.dwell[0] + Math.random() * (cfg.dwell[1] - cfg.dwell[0]);
+    this.station = cfg.station * (0.9 + rand() * 0.2);
+    this.dwell = cfg.dwell[0] + rand() * (cfg.dwell[1] - cfg.dwell[0]);
     this.hoverAge = 0;
     this.leaveAge = 0;
     this.leaveLateral = 0;
-    this.leaveSide = Math.random() < 0.5 ? -1 : 1;
+    this.leaveSide = rand() < 0.5 ? -1 : 1;
     this.fireTimer = Infinity;
     this.shotsFired = 0;
     this.maxShots = cfg.maxShots ?? 0;
     this.teleported = false;
+    this.armor = cfg.armor ?? 0;
+    this.phased = false;
+    this.phaseTimer = (cfg.phaseEvery ?? 2.4) * (0.45 + rand() * 0.3);
+    this.phaseGlow = null;
+    this.phaseVis = null;
+    this.shieldGlow = null;
     this.worldPos = new THREE.Vector3();
     this.bob = 0;
     this.lunge = 0;
@@ -163,6 +239,7 @@ export class Enemy {
       ring2: this.group.getObjectByName('ring2'),
       orb: this.group.getObjectByName('orb'),
       runes: this.group.getObjectByName('runes'),
+      lantern: this.group.getObjectByName('lantern'),
       tentacles: [],
     };
     for (let i = 0; i < 6; i++) {
@@ -195,10 +272,38 @@ export class Enemy {
     this.halo.scale.setScalar(1.05);
     this.halo.visible = false;
     this.group.add(this.halo);
+
+    if (cfg.armor) {
+      this.shieldGlow = glowSprite(0xffd982, 4.6, 0.18);
+      this.shieldGlow.material = this.shieldGlow.material.clone();
+      this.shieldGlow.material.userData.shared = false;
+      this.shieldGlow.position.y = 0.5;
+      this.group.add(this.shieldGlow);
+    }
+
+    if (type === 'poe') {
+      // A body double used while the Poe is intangible.
+      this.phaseVis = new THREE.Group();
+      const ghostGlow = glowSprite(0xb78bff, 3.2, 0.5);
+      ghostGlow.material = ghostGlow.material.clone();
+      ghostGlow.material.userData.shared = false;
+      this.phaseVis.add(ghostGlow);
+      const ringPts = [];
+      for (let i = 0; i < 25; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        ringPts.push(new THREE.Vector3(Math.cos(a) * 1.6, Math.sin(a) * 1.6, 0));
+      }
+      this.phaseRingGeo = new THREE.BufferGeometry().setFromPoints(ringPts);
+      this.phaseRing = new THREE.LineLoop(this.phaseRingGeo, lineMaterial(0xc9a6ff, { opacity: 0.45 }));
+      this.phaseVis.add(this.phaseRing);
+      this.phaseVis.visible = false;
+      game.enemyLayer.add(this.phaseVis);
+      this.phaseGhostGlow = ghostGlow;
+    }
   }
 
   get targetable() {
-    return this.alive;
+    return this.alive && !this.phased;
   }
 
   getTargetInfo() {
@@ -228,7 +333,7 @@ export class Enemy {
         this.mode = 'hover';
         this.hoverAge = 0;
         if (sp.fireRate) {
-          this.fireTimer = 1.0 + Math.random() * 1.4;
+          this.fireTimer = 1.0 + game.random() * 1.4;
         }
       }
     } else if (this.mode === 'hover') {
@@ -294,10 +399,46 @@ export class Enemy {
     this.spawnWarp.material.opacity = Math.max(0, 0.6 * (1 - t));
     this.spawnWarp.scale.setScalar(4.5 * (1.2 - t * 0.4));
 
-    this.halo.visible = this.mode === 'hover';
+    this.halo.visible = this.mode === 'hover' && !this.phased;
     if (this.halo.visible) {
       const haloIn = Math.min(1, this.hoverAge * 2.2);
       this.halo.scale.setScalar(1.05 * (1.25 - haloIn * 0.2) * (1 + Math.sin(this.age * 3.2) * 0.025));
+    }
+
+    // Armored foes carry a visible ward until it is cracked.
+    if (this.shieldGlow) {
+      this.shieldGlow.visible = this.armor > 0;
+      if (this.armor > 0) {
+        this.shieldGlow.material.opacity = 0.12 + Math.sin(this.age * 3) * 0.04;
+        this.shieldGlow.scale.setScalar(4.3 + Math.sin(this.age * 2.2) * 0.25);
+      }
+    }
+
+    // Poes blink out of the material world; their floating wisp remains.
+    if (this.type === 'poe') {
+      if (this.mode === 'hover') {
+        this.phaseTimer -= dt;
+        if (this.phaseTimer <= 0) {
+          this.phased = !this.phased;
+          this.phaseTimer = this.phased ? (sp.phaseDuration ?? 1.2) : (sp.phaseEvery ?? 2.4);
+          if (this.phased) {
+            game.fx?.teleport(this.worldPos);
+            if (this.spawnT > 0.4) this.spawnT = 0.7;
+          } else {
+            game.fx?.sparkle(this.worldPos, 0xc9a6ff, 8);
+          }
+        }
+      } else if (this.phased) {
+        this.phased = false;
+      }
+      this.group.visible = !this.phased;
+      if (this.phaseVis) {
+        this.phaseVis.visible = this.phased;
+        this.phaseVis.position.copy(this.worldPos);
+        this.phaseVis.quaternion.copy(game.camera.quaternion);
+        this.phaseGhostGlow.material.opacity = 0.35 + Math.sin(this.age * 5) * 0.12;
+        this.phaseRing.rotation.z += dt * 1.2;
+      }
     }
 
     this._animate(dt);
@@ -313,6 +454,7 @@ export class Enemy {
     // times before they leave. Killing the caster clears its orbs in flight.
     if (
       this.mode === 'hover' &&
+      !this.phased &&
       sp.fireRate &&
       this.shotsFired < this.maxShots
     ) {
@@ -320,7 +462,7 @@ export class Enemy {
       if (this.fireTimer <= 0) {
         this._fire(game);
         this.shotsFired += 1;
-        this.fireTimer = sp.fireRate[0] + Math.random() * (sp.fireRate[1] - sp.fireRate[0]);
+        this.fireTimer = sp.fireRate[0] + game.random() * (sp.fireRate[1] - sp.fireRate[0]);
       }
     }
 
@@ -333,8 +475,8 @@ export class Enemy {
     ) {
       this.teleported = true;
       game.spawnTeleport(this.worldPos);
-      this.baseLateral = (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 7);
-      this.baseHeight = -1.5 + Math.random() * 6;
+      this.baseLateral = (game.random() < 0.5 ? -1 : 1) * (3 + game.random() * 7);
+      this.baseHeight = -1.5 + game.random() * 6;
       this.spawnT = 0.35;
     }
   }
@@ -385,6 +527,36 @@ export class Enemy {
         }
         break;
       }
+      case 'armos': {
+        if (p.body) {
+          p.body.rotation.y = Math.sin(t * 0.4) * 0.12;
+          p.body.position.y = Math.sin(t * 1.1) * 0.03;
+        }
+        break;
+      }
+      case 'poe': {
+        if (p.body) {
+          p.body.rotation.z = Math.sin(t * 1.2) * 0.05;
+          p.body.position.y = Math.sin(t * 1.6 + this.phase) * 0.08;
+        }
+        if (p.lantern) {
+          p.lantern.rotation.z = Math.sin(t * 1.7) * 0.12;
+          p.lantern.scale.setScalar(0.92 + Math.sin(t * 4) * 0.08);
+        }
+        break;
+      }
+      case 'dekuScrub': {
+        if (p.body) p.body.rotation.z = Math.sin(t * 2.4) * 0.035;
+        if (p.jawUpper) p.jawUpper.rotation.x = Math.sin(t * 5) * 0.1;
+        break;
+      }
+      case 'likelike': {
+        if (p.body) {
+          p.body.rotation.y = Math.sin(t * 0.7) * 0.15;
+          p.body.scale.setScalar(1 + Math.sin(t * 2.2) * 0.025);
+        }
+        break;
+      }
       default:
         break;
     }
@@ -401,14 +573,34 @@ export class Enemy {
         origin,
         delay,
         speed: this.type === 'beamos' ? 34 : 28,
-        color: this.type === 'wizzrobe' ? 0x9d7bff : 0xff4f9d,
-        spread: i === 0 ? 0 : 1.1,
+        color:
+          this.type === 'dekuScrub'
+            ? 0x9dffb0
+            : this.type === 'poe'
+              ? 0xb78bff
+              : this.type === 'wizzrobe'
+                ? 0x9d7bff
+                : 0xff4f9d,
+        spread: i === 0 ? 0 : 0.9,
       });
     }
   }
 
   takeDamage(amount, game) {
-    if (!this.alive) return false;
+    if (!this.alive || this.phased) return false;
+    if (this.armor > 0) {
+      this.armor -= amount;
+      this.hitFlash = 0.16;
+      this.flashSprite.material.opacity = 0.95;
+      game.fx?.impact(this.worldPos, 0xffdf8a, { scale: 0.6 });
+      game.audio?.wardClang?.();
+      if (this.armor <= 0) {
+        this.shieldGlow.visible = false;
+        game.fx?.explode(this.worldPos, 0xffd982, { count: 20, scale: 0.8 });
+        game.hud?.popup?.('ARMOR BROKEN', window.innerWidth * 0.5, window.innerHeight * 0.45, 'harmony');
+      }
+      return false;
+    }
     this.hp -= amount;
     this.hitFlash = 0.16;
     this.flashSprite.material.opacity = 0.95;
@@ -430,8 +622,14 @@ export class Enemy {
   remove() {
     this.alive = false;
     if (this.group.parent) this.group.parent.remove(this.group);
+    if (this.phaseVis) {
+      if (this.phaseVis.parent) this.phaseVis.parent.remove(this.phaseVis);
+      this.phaseGhostGlow?.material?.dispose?.();
+      this.phaseRingGeo?.dispose?.();
+    }
     this.flashSprite?.material?.dispose?.();
     this.spawnWarp?.material?.dispose?.();
+    this.shieldGlow?.material?.dispose?.();
     this.haloGeo?.dispose?.();
   }
 

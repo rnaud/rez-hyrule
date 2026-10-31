@@ -158,6 +158,7 @@ export class Boss {
       mandR: this.group.getObjectByName('mandR'),
       head: this.group.getObjectByName('head'),
       crest: this.group.getObjectByName('crest'),
+      sword: this.group.getObjectByName('demonSword'),
       limbs: [0, 1, 2, 3].map((i) => this.group.getObjectByName(`limb${i}`)).filter(Boolean),
     };
     this._updatePhase(true);
@@ -253,7 +254,7 @@ export class Boss {
     if (this.introT >= 1 && !this.dying && this.attackTimer <= 0) {
       this._attack();
       const base = this.phase === 3 ? 1.55 : this.phase === 2 ? 2.1 : 2.65;
-      this.attackTimer = base + Math.random() * 0.8;
+      this.attackTimer = base + this.game.random() * 0.8;
     }
 
     if (this.dying) {
@@ -332,6 +333,16 @@ export class Boss {
         this.group.rotation.z = Math.sin(t * 0.35) * 0.02;
         break;
       }
+      case 'demise': {
+        if (p.head) p.head.rotation.z = Math.sin(t * 0.45) * 0.04;
+        if (p.jaw) p.jaw.rotation.x = 0.08 + Math.max(0, Math.sin(t * 1.1)) * 0.22 + this.phase * 0.03;
+        if (p.mandL) p.mandL.rotation.z = 0.35 + Math.sin(t * 0.7) * 0.06;
+        if (p.mandR) p.mandR.rotation.z = -0.35 - Math.sin(t * 0.7 + 1) * 0.06;
+        if (p.sword) p.sword.rotation.z = -0.7 + Math.sin(t * 0.9) * 0.12;
+        if (p.crest) p.crest.rotation.z = Math.PI + Math.sin(t * 1.1) * 0.08;
+        this.group.rotation.z = Math.sin(t * 0.3) * 0.018;
+        break;
+      }
       default:
         break;
     }
@@ -341,7 +352,19 @@ export class Boss {
   _attack() {
     const game = this.game;
     const aliveWeak = this.weakspots.filter((w) => w.alive);
-    const patterns = this.phase === 3 ? ['spiral', 'fan', 'spawn', 'volley'] : this.phase === 2 ? ['spiral', 'volley', 'spawn'] : ['volley', 'fan', 'spawn'];
+    const finalPatterns =
+      this.phase === 3
+        ? ['rain', 'spiral', 'fan', 'volley', 'spawn']
+        : this.phase === 2
+          ? ['spiral', 'rain', 'volley', 'spawn']
+          : ['volley', 'fan', 'spawn'];
+    const patterns = this.cfg.finalBoss
+      ? finalPatterns
+      : this.phase === 3
+        ? ['spiral', 'fan', 'spawn', 'volley']
+        : this.phase === 2
+          ? ['spiral', 'volley', 'spawn']
+          : ['volley', 'fan', 'spawn'];
     const pattern = patterns[this.attackIndex++ % patterns.length];
     if (pattern === 'spawn') {
       game.spawnBossMinions(this, this.phase === 3 ? 3 : 2);
@@ -370,6 +393,24 @@ export class Boss {
         });
       }
       game.audio?.bossRoar?.();
+    } else if (pattern === 'rain') {
+      const count = this.phase === 3 ? 12 : 8;
+      const f = game.rail.frameAt(game.playerDistance + DISTANCE);
+      for (let i = 0; i < count; i++) {
+        const origin = this.center
+          .clone()
+          .addScaledVector(f.right, (this.game.random() - 0.5) * 34)
+          .addScaledVector(f.up, 8 + this.game.random() * 10)
+          .addScaledVector(f.fwd, -6 + this.game.random() * 12);
+        game.spawnBossProjectile(this, {
+          delay: i * 0.09,
+          speed: 32 + this.phase * 4,
+          size: 1.35,
+          origin,
+          offset: new THREE.Vector3((this.game.random() - 0.5) * 3, (this.game.random() - 0.5) * 2, 0),
+        });
+      }
+      game.audio?.bossRoar?.();
     } else if (pattern === 'fan') {
       for (const w of aliveWeak) {
         for (let i = 0; i < 2; i++) {
@@ -378,7 +419,7 @@ export class Boss {
             speed: 42,
             size: 1.1,
             origin: w.pos.clone(),
-            offset: new THREE.Vector3((i - 0.5) * 4, (Math.random() - 0.5) * 2, 0),
+            offset: new THREE.Vector3((i - 0.5) * 4, (this.game.random() - 0.5) * 2, 0),
           });
         }
       }

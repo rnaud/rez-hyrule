@@ -7,6 +7,11 @@
     <meta name="description" content="REZ: HYRULE — a Rez-inspired rail shooter set in the realm of Hyrule. Awaken the Triforce. Built with three.js." />
     <title>REZ: HYRULE — Awaken the Triforce</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2303080a'/%3E%3Cpath d='M32 10 54 48 10 48Z M32 26 24 40 40 40Z' fill='none' stroke='%23f6d77b' stroke-width='2.5'/%3E%3C/svg%3E" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="REZ: HYRULE" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -32,6 +37,7 @@
             <circle class="ret-core" cx="60" cy="60" r="2.5" />
           </svg>
           <div id="reticle-locks" aria-hidden="true"></div>
+          <div id="beat-ring" class="beat-ring" aria-hidden="true"></div>
         </div>
 
         <div id="lock-layer" aria-hidden="true"></div>
@@ -44,6 +50,21 @@
               <span class="hud-label">AWAKEN</span>
               <div id="awaken-pips" class="awaken-pips"></div>
               <span id="awaken-level" class="awaken-level">1</span>
+            </div>
+            <div id="power-hud" class="power-hud" aria-label="Goddess powers">
+              <div class="power-pip" data-power="power" title="Din's Power">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 21 20 3 20Z"/></svg>
+                <span class="power-name">DIN</span>
+              </div>
+              <div class="power-pip" data-power="courage" title="Farore's Courage">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7Z"/></svg>
+                <span class="power-name">FARORE</span>
+              </div>
+              <div class="power-pip" data-power="wisdom" title="Nayru's Wisdom">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="power-name">NAYRU</span>
+              </div>
+              <div id="power-shields" class="power-shields" aria-label="Ward charges"></div>
             </div>
           </div>
 
@@ -64,6 +85,11 @@
             <span></span><span></span>
           </button>
 
+          <button id="ability-btn" class="ability-btn hidden" aria-label="Activate Nayru's Focus" title="Nayru's Focus (E)">
+            <span class="ability-eye">◉</span>
+            <span id="ability-cd" class="ability-cd"></span>
+          </button>
+
           <div class="hud-right">
             <div class="score-block">
               <span class="hud-label">SPIRIT SCORE</span>
@@ -76,6 +102,7 @@
               </svg>
               <span id="rupees" class="rupees">000</span>
             </div>
+            <div id="run-meta" class="run-meta"></div>
           </div>
         </header>
 
@@ -87,6 +114,12 @@
         </div>
 
         <div id="subtitle" class="subtitle" aria-live="polite"></div>
+
+        <div id="chain-hud" class="chain-hud" aria-hidden="true">
+          <span id="chain-value" class="chain-value">×1</span>
+          <span class="chain-label">CHAIN</span>
+          <span id="chain-harmony" class="chain-harmony"></span>
+        </div>
 
         <div id="hint" class="hint"></div>
 

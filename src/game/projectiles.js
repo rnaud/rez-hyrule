@@ -28,7 +28,7 @@ export class Projectile {
     this.pos = this.origin.clone();
     this.target = (opts.target ?? new THREE.Vector3()).clone();
     this.targetOffset = opts.targetOffset ?? new THREE.Vector3();
-    this.wobblePhase = Math.random() * Math.PI * 2;
+    this.wobblePhase = (game.random?.() ?? Math.random()) * Math.PI * 2;
 
     this.group = new THREE.Group();
     this.group.userData.projectile = this;

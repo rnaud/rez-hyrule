@@ -33,6 +33,10 @@ export class AudioEngine {
     this.noise = null;
     this.playing = false;
     this.muted = false;
+    this.musicVolume = 0.7;
+    this.sfxVolume = 0.85;
+    this.musicVolumeGain = null;
+    this.sfxVolumeGain = null;
     this.boss = false;
     this.awaken = 1;
     this.stage = null;
@@ -83,14 +87,24 @@ export class AudioEngine {
     master.connect(comp);
     comp.connect(ctx.destination);
 
+    const musicVolume = ctx.createGain();
+    musicVolume.gain.value = this.musicVolume;
+    musicVolume.connect(master);
+    this.musicVolumeGain = musicVolume;
+
+    const sfxVolume = ctx.createGain();
+    sfxVolume.gain.value = this.sfxVolume;
+    sfxVolume.connect(master);
+    this.sfxVolumeGain = sfxVolume;
+
     const musicBus = ctx.createGain();
     musicBus.gain.value = 0.9;
-    musicBus.connect(master);
+    musicBus.connect(musicVolume);
     this.musicBus = musicBus;
 
     const sfxBus = ctx.createGain();
     sfxBus.gain.value = 0.8;
-    sfxBus.connect(master);
+    sfxBus.connect(sfxVolume);
     this.sfxBus = sfxBus;
 
     // A glassy plate-ish reverb from synthesized noise.
@@ -164,6 +178,16 @@ export class AudioEngine {
     return buf;
   }
 
+  setVolumes(music, sfx) {
+    if (Number.isFinite(music)) this.musicVolume = Math.max(0, Math.min(1, music));
+    if (Number.isFinite(sfx)) this.sfxVolume = Math.max(0, Math.min(1, sfx));
+    if (this.ctx) {
+      const t = this.ctx.currentTime;
+      if (this.musicVolumeGain) this.musicVolumeGain.gain.setTargetAtTime(this.musicVolume, t, 0.05);
+      if (this.sfxVolumeGain) this.sfxVolumeGain.gain.setTargetAtTime(this.sfxVolume, t, 0.05);
+    }
+  }
+
   setMuted(muted) {
     this.muted = muted;
     if (this.master) {
@@ -224,6 +248,29 @@ export class AudioEngine {
       this.musicBus.gain.cancelScheduledValues(this.ctx.currentTime);
       this.musicBus.gain.setTargetAtTime(0.9, this.ctx.currentTime, 0.2);
     }
+  }
+
+  /** Restart the sequencer on a distinct boss theme. */
+  startBossTheme(config) {
+    if (!this.ctx || !config) return;
+    this.stopDrone(0.2);
+    this.stage = config;
+    this.playing = true;
+    this.boss = true;
+    this.beatDur = 60 / config.bpm;
+    this.stepDur = this.beatDur / 4;
+    this.step = 0;
+    this.musicStart = this.ctx.currentTime + 0.12;
+    this.nextStepTime = this.musicStart;
+    this.playerNoteIndex = 2;
+    this._applyLayers();
+    if (this.musicBus) {
+      const t = this.ctx.currentTime;
+      this.musicBus.gain.cancelScheduledValues(t);
+      this.musicBus.gain.setValueAtTime(Math.max(0.0001, this.musicBus.gain.value), t);
+      this.musicBus.gain.setTargetAtTime(0.9, t, 0.25);
+    }
+    this.startDrone();
   }
 
   setBoss(isBoss) {
@@ -698,14 +745,15 @@ export class AudioEngine {
   }
 
   /** A player shot, pitched into the current chord. Becomes part of the music. */
-  playerNote(onBeat = false) {
+  playerNote(onBeat = false, chain = 0) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const chord = this._currentChord();
     const degs = [0, 1, 2, 1, 2, 0, 2, 1];
     const d = degs[this.playerNoteIndex % degs.length];
     this.playerNoteIndex++;
-    const note = chord[d % chord.length] + 24 + (this.playerNoteIndex % 4 === 0 ? 12 : 0);
+    const chainLift = chain >= 7 ? 24 : chain >= 3 ? 12 : 0;
+    const note = chord[d % chord.length] + 24 + chainLift + (this.playerNoteIndex % 4 === 0 ? 12 : 0);
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const filter = this.ctx.createBiquadFilter();

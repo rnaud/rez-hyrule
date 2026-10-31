@@ -51,3 +51,12 @@ requestAnimationFrame(frame);
 if (document.fonts?.ready) {
   document.fonts.ready.then(() => document.body.classList.add('fonts-ready'));
 }
+
+// Install the offline shell. Only the production build has a stable SW URL.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch((error) => {
+      console.warn('[REZ: HYRULE] offline shell unavailable', error);
+    });
+  });
+}

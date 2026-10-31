@@ -18,7 +18,14 @@ import {
   screenGameOver,
   screenVictory,
   screenPause,
+  screenStageSelect,
+  screenOptions,
+  screenGallery,
+  screenShrine,
+  screenBossRushResults,
 } from './screens.js';
+import { TRACKS, POWER_INFO } from './catalog.js';
+import { Save, DEFAULT_SETTINGS } from './Save.js';
 import {
   clamp,
   damp,
@@ -28,10 +35,17 @@ import {
   glowSprite,
   lineMaterial,
   TAU,
+  hashString,
+  localDateKey,
+  prettyDate,
+  pad,
 } from './util.js';
 
-const BEST_KEY = 'rez-hyrule-best-v1';
 const MAX_HEALTH = 24;
+const ABILITY_COOLDOWN = 18;
+const ABILITY_DURATION = 4.2;
+const CAMPAIGN_POWERS = ['power', 'courage', 'wisdom'];
+const SITE_URL = 'https://rnaud.github.io/rez-hyrule/';
 
 export class Game {
   constructor(canvas) {
@@ -44,16 +58,25 @@ export class Game {
     this.beamLayer = this.world.beamLayer;
     this.bossLayer = this.world.bossLayer;
     this.bossFxLayer = this.world.bossFxLayer;
+    this.save = new Save();
+    this.settings = this.save.settings;
     this.audio = new AudioEngine();
+    this.audio.setVolumes(this.settings.musicVolume, this.settings.sfxVolume);
     this.input = new Input();
     this.hud = new Hud({
-      onAction: (action) => this.handleAction(action),
+      onAction: (action, button) => this.handleAction(action, button),
       onHover: () => this.audio.uiHover(),
     });
     this.fx = new Effects(this.world.scene, this.world.camera);
     this.fx.setBeamGame(this);
     this.fx.setPixelRatio(this.world.renderer.getPixelRatio());
     this.world.onResize = (pr) => this.fx.setPixelRatio(pr);
+    this.world.applyQuality(this.settings.quality);
+    this.hud.applyPreferences(this.settings);
+    this.input.setOptions({
+      aimSpeed: this.settings.aimSpeed,
+      gamepad: this.settings.gamepad,
+    });
 
     this.state = 'BOOT';
     this.prevState = 'PLAYING';
@@ -95,8 +118,33 @@ export class Game {
     this.stageEntryScore = 0;
     this.stats = this._emptyStats();
     this.runStats = this._emptyStats();
-    this.highScore = this._loadBest();
+    this.highScore = this.save.progress.bestScore || 0;
     this._waveRng = seeded(4242);
+    this.mode = 'campaign';
+    this.runSeed = 4242;
+    this.runPlayTime = 0;
+    this.bossRushIndex = 0;
+    this.bossRushCleared = 0;
+    this.dailyInfo = null;
+    this.pendingNextStage = null;
+    this.shrinePurchases = {};
+    this.shrineNextStage = null;
+    this.pendingExtraLocks = 0;
+    this.extraLocks = 0;
+    this.powers = { ...this.save.progress.powers };
+    this.shieldCharges = 0;
+    this.wisdomActive = 0;
+    this.wisdomCooldown = 0;
+    this.harmonyChain = 0;
+    this.harmonyTimer = 0;
+    this.lastResult = null;
+    this.lastShareText = '';
+    this.optionsReturn = 'TITLE';
+    this.galleryReturn = 'TITLE';
+    this.galleryTab = 'bestiary';
+    this.galleryTrack = null;
+    this._lastChainDisplay = { combo: -1, harmony: -1 };
+    this._dailyKey = localDateKey();
     this.isTouch =
       (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
       (navigator.maxTouchPoints || 0) > 0;
@@ -119,6 +167,13 @@ export class Game {
       if (this.state === 'PLAYING' || this.state === 'BOSS') this.pauseGame();
     });
 
+    document.getElementById('ability-btn')?.addEventListener('click', () => this.activateWisdom());
+    this.input.onPadButton = (button) => this.onPadButton(button);
+    this.hud.screenEl.addEventListener('input', (e) => this.onSettingInput(e));
+    this.hud.screenEl.addEventListener('change', (e) => this.onSettingInput(e));
+    window.addEventListener('gamepadconnected', () => this._refreshPadStatus());
+    window.addEventListener('gamepaddisconnected', () => this._refreshPadStatus());
+
     this.clock = 0;
   }
 
@@ -127,25 +182,278 @@ export class Game {
   }
 
   _loadBest() {
-    try {
-      return Number(localStorage.getItem(BEST_KEY) || 0) || 0;
-    } catch {
-      return 0;
-    }
+    return this.save.progress.bestScore || 0;
   }
 
   _saveBest(score) {
-    const prev = this.highScore;
-    if (score > prev) {
-      this.highScore = score;
-      try {
-        localStorage.setItem(BEST_KEY, String(Math.floor(score)));
-      } catch {
-        /* ignore */
+    const progress = this.save.progress;
+    const isBest = score > progress.bestScore;
+    if (isBest) {
+      progress.bestScore = Math.floor(score);
+      this.save.save();
+    }
+    this.highScore = progress.bestScore;
+    return isBest;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* settings / menus                                                   */
+  /* ------------------------------------------------------------------ */
+
+  random() {
+    return this.gameRng ? this.gameRng.next() : Math.random();
+  }
+
+  _refreshDailyInfo() {
+    const key = localDateKey();
+    this._dailyKey = key;
+    const saved = this.save.progress.daily;
+    this.dailyInfo = saved?.date === key ? { ...saved } : { date: key, score: 0, rank: '', stage: -1 };
+    return this.dailyInfo;
+  }
+
+  _titleData() {
+    const progress = this.save.progress;
+    this._refreshDailyInfo();
+    return {
+      highScore: progress.bestScore || this.highScore || 0,
+      progress,
+      daily: this.dailyInfo,
+      unlockedBosses: Object.keys(progress.bosses || {}).length,
+    };
+  }
+
+  _showTitleScreen() {
+    this.state = 'TITLE';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hideBoss();
+    this.hud.subtitle('');
+    this.hud.hint('');
+    this.hud.setChain(0, 0);
+    this.hud.showScreen(screenTitle(this._titleData()));
+    document.body.classList.remove('is-playing');
+  }
+
+  applyAllSettings() {
+    const s = this.settings;
+    this.audio.setVolumes(s.musicVolume, s.sfxVolume);
+    this.audio.setMuted(this.audio.muted);
+    this.world.applyQuality(s.quality);
+    this.world.shakeScale = s.reduceShake ? 0.18 : 1;
+    this.world.fovScale = s.reduceShake ? 0.35 : 1;
+    this.input.setOptions({ aimSpeed: s.aimSpeed, gamepad: s.gamepad });
+    this.hud.applyPreferences(s);
+  }
+
+  onSettingInput(event) {
+    const el = event.target.closest?.('[data-setting]');
+    if (!el || this.state !== 'OPTIONS') return;
+    const key = el.dataset.setting;
+    let value;
+    if (el.type === 'range') {
+      value = Number(el.value);
+    } else if (el.type === 'checkbox') {
+      value = !!el.checked;
+    } else {
+      value = el.value;
+    }
+    if (key === 'musicVolume' || key === 'sfxVolume' || key === 'aimSpeed') value /= 100;
+    if (key === 'aimSpeed') value = clamp(value, 0.5, 2);
+    this.settings[key] = value;
+    this.save.setSetting(key, value);
+    this.applyAllSettings();
+    this._updateSettingOutputs();
+  }
+
+  _updateSettingOutputs() {
+    for (const output of this.hud.screenEl.querySelectorAll('[data-value-for]')) {
+      const key = output.dataset.valueFor;
+      const value = this.settings[key];
+      if (typeof value === 'number') {
+        output.textContent = `${Math.round(value * 100)}%`;
       }
+    }
+  }
+
+  openOptions(returnState = this.state) {
+    this.optionsReturn = returnState === 'PAUSED' ? 'PAUSED' : 'TITLE';
+    if (this.optionsReturn === 'PAUSED') {
+      this.audio.pause();
+    } else {
+      this.audio.unlock();
+      this.audio.uiConfirm();
+      this.audio.stopMusic(0.3);
+    }
+    this.state = 'OPTIONS';
+    this.input.setEnabled(false);
+    this.hud.hideReticle();
+    document.body.classList.remove('is-playing');
+    this.hud.showScreen(
+      screenOptions({
+        settings: this.settings,
+        gamepadConnected: !!this.input.gamepadConnected,
+      }),
+      { dim: true }
+    );
+  }
+
+  closeOptions() {
+    if (this.optionsReturn === 'PAUSED') {
+      this.state = 'PAUSED';
+      this.audio.pause();
+      this._showPauseScreen();
+      return;
+    }
+    this.optionsReturn = 'TITLE';
+    this._showTitleScreen();
+  }
+
+  _refreshPadStatus() {
+    if (this.state !== 'OPTIONS') return;
+    const el = this.hud.screenEl.querySelector('.pad-status');
+    if (!el) return;
+    const connected = !!this.input.gamepadConnected;
+    el.classList.toggle('connected', connected);
+    el.innerHTML = `<span class="dot"></span>${connected ? 'CONTROLLER CONNECTED' : 'NO CONTROLLER DETECTED'}`;
+  }
+
+  showStageSelect() {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.audio.stopMusic(0.3);
+    this.state = 'STAGE_SELECT';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hideBoss();
+    this.hud.showScreen(screenStageSelect({ progress: this.save.progress }), { dim: true });
+    document.body.classList.remove('is-playing');
+  }
+
+  openGallery(returnState = 'TITLE') {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.audio.stopMusic(0.3);
+    this.galleryReturn = returnState === 'VICTORY' ? 'VICTORY' : 'TITLE';
+    this.state = 'GALLERY';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hideBoss();
+    this.hud.hint('');
+    this.hud.subtitle('');
+    this.galleryTrack = null;
+    this._renderGallery();
+    document.body.classList.remove('is-playing');
+  }
+
+  _renderGallery() {
+    this.hud.showScreen(
+      screenGallery({
+        tab: this.galleryTab,
+        progress: this.save.progress,
+        playingTrack: this.galleryTrack,
+      }),
+      { dim: true }
+    );
+  }
+
+  closeGallery() {
+    this.audio.stopMusic(0.25);
+    this.galleryTrack = null;
+    const back = this.galleryReturn;
+    this.galleryReturn = 'TITLE';
+    if (back === 'VICTORY') {
+      this.showVictory();
+    } else {
+      this._showTitleScreen();
+    }
+  }
+
+  _selectGalleryTab(tab) {
+    if (!['bestiary', 'music', 'triforce'].includes(tab)) return;
+    if (tab !== 'music' && this.galleryTrack) {
+      this.audio.stopMusic(0.2);
+      this.galleryTrack = null;
+    }
+    this.galleryTab = tab;
+    this._renderGallery();
+  }
+
+  _previewTrack(trackId) {
+    const track = TRACKS.find((entry) => entry.id === trackId);
+    if (!track || !this.save.progress.tracks[trackId]) return;
+    this.audio.unlock();
+    if (this.galleryTrack === trackId) {
+      this.audio.stopMusic(0.2);
+      this.galleryTrack = null;
+      this._renderGallery();
+      return;
+    }
+    this.audio.stopMusic(0.15);
+    if (track.kind === 'boss') {
+      this.audio.startBossTheme(track.config);
+    } else {
+      this.audio.startStage(track.config);
+      this.audio.setAwaken(10);
+    }
+    this.galleryTrack = trackId;
+    this.galleryTab = 'music';
+    this._renderGallery();
+  }
+
+  _shareResult() {
+    if (!this.lastShareText) return;
+    const write = async () => {
+      try {
+        await navigator.clipboard.writeText(this.lastShareText);
+        this.hud.popup('RESULT COPIED', window.innerWidth * 0.5, window.innerHeight * 0.4, 'harmony');
+      } catch {
+        window.prompt('Copy your result:', this.lastShareText);
+      }
+    };
+    write();
+  }
+
+  _clickPrimary() {
+    const focused = document.activeElement;
+    if (
+      focused &&
+      this.hud.screenEl.contains(focused) &&
+      focused.tagName === 'BUTTON' &&
+      !focused.disabled
+    ) {
+      focused.click();
+      return true;
+    }
+    const btn =
+      this.hud.screenEl.querySelector('.screen-actions .btn-primary, .results-actions .btn-primary, .over-actions .btn-primary, .title-actions .btn-primary, .btn-primary');
+    if (btn && !btn.disabled) {
+      btn.click();
       return true;
     }
     return false;
+  }
+
+  _cycleScreenFocus(direction = 1) {
+    const items = [...this.hud.screenEl.querySelectorAll('button:not([disabled])')].filter(
+      (el) => el.offsetParent !== null
+    );
+    if (!items.length) return;
+    items.forEach((el) => el.classList.remove('pad-focus'));
+    const current = items.indexOf(document.activeElement);
+    const next =
+      current === -1
+        ? direction > 0
+          ? 0
+          : items.length - 1
+        : (current + direction + items.length) % items.length;
+    const target = items[next];
+    target.classList.add('pad-focus');
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest' });
   }
 
   /* ------------------------------------------------------------------ */
@@ -159,17 +467,15 @@ export class Game {
   showTitle() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this._teardownWorld();
-    this._buildPreview(0);
-    this.state = 'TITLE';
-    this.input.setEnabled(false);
-    this.hud.hideReticle();
-    this.hud.showHud(false);
-    this.hud.hideBoss();
-    this.hud.subtitle('');
-    this.hud.hint('');
-    this.hud.showScreen(screenTitle({ highScore: this.highScore }));
-    document.body.classList.remove('is-playing');
+    const unlocked = this.save.progress.unlocked || 1;
+    const resumeStage = clamp(this.save.progress.campaignStage || 0, 0, unlocked - 1);
+    const previewIndex = this.save.progress.campaignComplete
+      ? STAGES.length - 1
+      : Math.min(STAGES.length - 1, resumeStage);
+    this._buildPreview(previewIndex);
     this.audio.stopMusic(0.4);
+    this._refreshDailyInfo();
+    this._showTitleScreen();
   }
 
   _buildPreview(stageIndex) {
@@ -236,21 +542,108 @@ export class Game {
   /* run / stage flow                                                   */
   /* ------------------------------------------------------------------ */
 
-  startNewGame() {
-    this.audio.unlock();
-    this.audio.uiConfirm();
+  _beginRun({ maxHealth = 16, seed = (Math.random() * 0xffffffff) >>> 0 } = {}) {
     this.score = 0;
     this.rupees = 0;
-    this.maxHealth = 16;
-    this.health = 16;
+    this.maxHealth = maxHealth;
+    this.health = maxHealth;
     this.runStats = this._emptyStats();
     this.runPlayTime = 0;
-    this.stageIndex = 0;
-    this._teardownWorld();
-    this._loadStage(0, { story: true });
+    this.runSeed = seed >>> 0;
+    this.gameRng = seeded(this.runSeed);
+    this.powers = { ...this.save.progress.powers };
+    this.shieldCharges = this.powers.courage ? 1 : 0;
+    this.wisdomActive = 0;
+    this.wisdomCooldown = 0;
+    this.extraLocks = 0;
+    this.pendingExtraLocks = 0;
+    this.pendingNextStage = null;
+    this.shrinePurchases = {};
+    this.shrineNextStage = null;
+    this.harmonyChain = 0;
+    this.harmonyTimer = 0;
+    this.lastResult = null;
+    this.lastShareText = '';
+    this.bossRushCleared = 0;
+    this._runTotalsSaved = false;
+    this._pendingVictoryBest = null;
+    this.save.progress.totalRuns += 1;
+    this.save.save();
   }
 
-  _loadStage(index, { story = true, keepScore = true } = {}) {
+  startNewGame() {
+    this.startCampaign();
+  }
+
+  startCampaign() {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.mode = 'campaign';
+    const progress = this.save.progress;
+    let start = 0;
+    if (!progress.campaignComplete) {
+      start = clamp(progress.campaignStage || 0, 0, STAGES.length - 1);
+    } else {
+      progress.campaignComplete = false;
+      progress.campaignStage = 0;
+      this.save.save();
+    }
+    this._beginRun({ maxHealth: 16 });
+    this._loadStage(start, { story: true });
+  }
+
+  startScoreAttack(index = 0) {
+    const i = clamp(Number(index) || 0, 0, STAGES.length - 1);
+    if (i + 1 > (this.save.progress.unlocked || 1)) return;
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.mode = 'score';
+    this._beginRun({ maxHealth: 16, seed: (Math.random() * 0xffffffff) >>> 0 });
+    this._loadStage(i, { story: false });
+  }
+
+  startDaily() {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.mode = 'daily';
+    const date = localDateKey();
+    const seed = hashString(`rez-hyrule-daily:${date}`) >>> 0;
+    const stageIndex = seed % STAGES.length;
+    this.dailyInfo = { date, seed, stageIndex };
+    this._beginRun({ maxHealth: 16, seed });
+    this._loadStage(stageIndex, { story: false });
+  }
+
+  startBossRush() {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.mode = 'bossrush';
+    this.bossRushIndex = 0;
+    this._beginRun({ maxHealth: 20, seed: (Math.random() * 0xffffffff) >>> 0 });
+    this._loadStage(0, { story: false, bossOnly: true });
+  }
+
+  _runMetaText() {
+    if (this.mode === 'bossrush') {
+      return `BOSS RUSH · GUARDIAN ${roman(this.bossRushIndex + 1)} / ${roman(STAGES.length)}`;
+    }
+    if (this.mode === 'score') return `SCORE ATTACK · ${this.stage.chapter}`;
+    if (this.mode === 'daily') return `DAILY RAIL · ${prettyDate(this.dailyInfo?.date || localDateKey())}`;
+    return `CAMPAIGN · RAIL ${roman(this.stageIndex + 1)} / ${roman(STAGES.length)}`;
+  }
+
+  _syncHudPowers() {
+    if (this.powers.courage) this.shieldCharges = Math.max(1, this.shieldCharges);
+    this.shieldCharges = Math.max(0, this.shieldCharges);
+    this.hud.setPowers(this.powers, this.shieldCharges);
+    this.hud.setWisdom({
+      active: this.wisdomActive,
+      cooldown: this.wisdomCooldown,
+      duration: ABILITY_DURATION,
+    });
+  }
+
+  _loadStage(index, { story = true, bossOnly = false } = {}) {
     this.stageIndex = index;
     const stage = STAGES[index];
     this.stage = stage;
@@ -258,6 +651,8 @@ export class Game {
     this._teardownWorld();
     this.audio.unlock();
     this.audio.stopMusic(0.2);
+    this.audio.setVolumes(this.settings.musicVolume, this.settings.sfxVolume);
+    if (this.mode === 'campaign') this.save.setCampaignStage(index);
 
     this.rail = new Rail(stage.rail);
     this.world.bossFxLayer.visible = true;
@@ -277,30 +672,42 @@ export class Game {
     this.locks = [];
     this.fireQueue = [];
     this.waveCount = 0;
-    this.waveTimer = 1.15;
+    this.waveTimer = bossOnly ? 9999 : 1.15;
     this.quoteFlags = stage.story.quotes.map(() => false);
     this.playerDistance = 10;
     this.playerSpeed = 5;
     this.speedTarget = 5;
     this.bossTrigger = this.rail.length - 330;
+    this.pendingNextStage = null;
     this.stageElapsed = 0;
     this.stats = this._emptyStats();
     this.awaken = clamp(1 + index, 1, 10);
     this.awakenCharge = 0;
     this.stats.maxAwaken = this.awaken;
-    this.health = Math.max(this.health, this.maxHealth);
     this.invulnerable = 0;
     this.combo = 0;
     this.comboTimer = 0;
+    this.harmonyChain = 0;
+    this.harmonyTimer = 0;
     this.clearTimer = 0;
-    this.stageEntryScore = keepScore ? this.score : 0;
+    this.extraLocks = this.pendingExtraLocks || 0;
+    this.pendingExtraLocks = 0;
+    this.wisdomActive = 0;
+    this.wisdomCooldown = 0;
+    this.stageEntryScore = this.score;
     this.stageEntryRunStats = { ...this.runStats };
     this.stageEntryRupees = this.rupees;
+    this._waveRng = seeded((this.runSeed + index * 7919) >>> 0);
     this.player.setAwaken(this.awaken);
+    this.save.markTrack(`stage:${stage.id}`);
+
+    this._syncHudPowers();
     this.hud.setHearts(this.health, this.maxHealth, { animate: false });
     this.hud.setAwaken(this.awaken);
     this.hud.setScore(this.score, false);
     this.hud.setRupees(this.rupees);
+    this.hud.setChain(this.combo, this.harmonyChain);
+    this.hud.setRunMeta(this._runMetaText());
     this.hud.hideBoss();
     this.hud.showHud(false);
     this.hud.hideReticle();
@@ -317,6 +724,10 @@ export class Game {
     this.input.setEnabled(false);
     document.body.classList.remove('is-playing');
 
+    if (bossOnly) {
+      this._beginBossOnlyFight();
+      return;
+    }
     if (story) {
       this.state = 'STORY';
       this.hud.showScreen(
@@ -329,14 +740,44 @@ export class Game {
     }
   }
 
+  _beginBossOnlyFight() {
+    this.playerDistance = Math.max(120, this.rail.length - 340);
+    this.playerSpeed = 0;
+    this.speedTarget = 0;
+    this.bossTrigger = this.playerDistance;
+    this.stageElapsed = 0;
+    this.hud.hideScreen();
+    this.hud.showHud(true);
+    this.hud.setHearts(this.health, this.maxHealth, { animate: false });
+    this.hud.setScore(this.score, false);
+    this.hud.setRupees(this.rupees);
+    this.hud.setRunMeta(this._runMetaText());
+    this.hud.setPowers(this.powers, this.shieldCharges);
+    this.input.setEnabled(true);
+    this.input.setAimCenter();
+    document.body.classList.add('is-playing');
+    this.player.update(0.016, this.playerDistance, this.clock);
+    this.world.initialized = false;
+    this.world.updateCamera(0.016, this.rail, this.playerDistance, this.player, {
+      mode: 'play',
+      boss: true,
+      reticleX: 0,
+      reticleY: 0,
+    });
+    this.state = 'PLAYING';
+    this._startBoss();
+  }
+
   beginPlay() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    this.audio.stopMusic(0.18);
     this.hud.hideScreen();
     this.state = 'PLAYING';
     this.input.setEnabled(true);
     this.input.setAimCenter();
     this.hud.showHud(true);
     this.hud.hideReticle();
+    this.hud.setRunMeta(this._runMetaText());
     document.body.classList.add('is-playing');
     this.speedTarget = 30;
     this.stageElapsed = 0;
@@ -347,19 +788,31 @@ export class Game {
     this.audio.startStage({ ...this.stage.music });
     this.audio.setAwaken(this.awaken);
     this._setAwaken(this.awaken, { silent: true });
+    this.save.markTrack(`stage:${this.stage.id}`);
+    const kicker =
+      this.mode === 'score'
+        ? `SCORE ATTACK · RAIL ${roman(this.stageIndex + 1)}`
+        : this.mode === 'daily'
+          ? `DAILY RAIL · ${prettyDate(this.dailyInfo?.date || localDateKey())}`
+          : this.stage.chapter;
     this.hud.showBanner({
-      kicker: this.stage.chapter,
+      kicker,
       title: this.stage.name,
       sub: this.stage.epithet,
       duration: 2200,
     });
+    const abilityHint = this.powers.wisdom
+      ? this.isTouch
+        ? '<span><span class="key">◉</span> NAYRU’S FOCUS</span>'
+        : '<span><span class="key">E</span> NAYRU’S FOCUS</span>'
+      : '';
     this.hud.hint(
       this.isTouch
-        ? '<span><span class="key">HOLD</span> LOCK THE MALICE</span><span><span class="key">DRAG</span> ACROSS FOES</span><span><span class="key">RELEASE</span> STRIKE</span>'
-        : '<span><span class="key">HOLD LMB</span> LOCK THE MALICE</span><span><span class="key">RELEASE</span> STRIKE IN HARMONY</span><span><span class="key">SPACE</span> ALSO LOCKS</span>',
+        ? `<span><span class="key">HOLD</span> LOCK THE MALICE</span><span><span class="key">DRAG</span> ACROSS FOES</span><span><span class="key">RELEASE</span> STRIKE</span>${abilityHint}`
+        : `<span><span class="key">HOLD LMB</span> LOCK THE MALICE</span><span><span class="key">RELEASE</span> STRIKE IN HARMONY</span><span><span class="key">SPACE</span> ALSO LOCKS</span>${abilityHint}`,
       9000
     );
-    if (this.stageIndex === 0) {
+    if (this.stageIndex === 0 && this.mode === 'campaign') {
       window.setTimeout(() => {
         if (this.state === 'PLAYING') {
           this.hud.subtitle(
@@ -369,21 +822,44 @@ export class Game {
         }
       }, 1800);
     }
+    if (this.mode === 'daily') {
+      window.setTimeout(() => {
+        if (this.state === 'PLAYING' || this.state === 'BOSS') {
+          const best = this.save.progress.daily?.date === (this.dailyInfo?.date || '') ? this.save.progress.daily.score : 0;
+          this.hud.subtitle(
+            `Today’s rail is seeded. <span class="gold">Best today: ${pad(best, 7)}.</span> Make it stranger.`,
+            4200
+          );
+        }
+      }, 3600);
+    }
+    this._syncHudPowers();
     this.audio.uiConfirm();
   }
 
   restartStage() {
     if (this.state === 'PAUSED') this.audio.resume();
+    this.audio.stopMusic(0.25);
     this.hud.hideScreen();
-    this.audio.stopMusic(0.3);
+    if (this.mode === 'score') {
+      this.startScoreAttack(this.stageIndex);
+      return;
+    }
+    if (this.mode === 'daily') {
+      this.startDaily();
+      return;
+    }
+    if (this.mode === 'bossrush') {
+      this.startBossRush();
+      return;
+    }
     this.score = this.stageEntryScore ?? this.score;
     this.health = this.maxHealth;
+    this._runTotalsSaved = false;
     this.rupees = this.stageEntryRupees ?? this.rupees;
     if (this.stageEntryRunStats) this.runStats = { ...this.stageEntryRunStats };
-    this._loadStage(this.stageIndex, { story: true });
-    this.hud.setScore(this.score, false);
-    this.hud.setRupees(this.rupees);
-    this.hud.setHearts(this.health, this.maxHealth, { animate: false });
+    this.shieldCharges = this.powers.courage ? 1 : 0;
+    this._loadStage(this.stageIndex, { story: this.mode === 'campaign' });
     document.body.classList.remove('is-playing');
   }
 
@@ -393,7 +869,7 @@ export class Game {
       return;
     }
     const next = this.stageIndex + 1;
-    this._loadStage(next, { story: true });
+    this._loadStage(next, { story: this.mode === 'campaign' });
   }
 
   _startBoss() {
@@ -401,6 +877,10 @@ export class Game {
     this.state = 'BOSS';
     this.speedTarget = 0;
     this.waveTimer = 9999;
+    if (this.mode === 'bossrush') this.bossRushIndex = this.stageIndex;
+    this.save.markBoss(this.stage.id);
+    this.save.markTrack(`boss:${this.stage.id}`);
+    this.hud.setRunMeta(this._runMetaText());
     this.hud.hint(
       '<span><span class="key">LOCK</span> THE MALICE EYES</span><span>BREAK THEM ALL TO EXPOSE THE CORE</span>',
       10000
@@ -419,15 +899,19 @@ export class Game {
       sub: this.stage.boss.sub,
       phase: 'PHASE I',
     });
+    const bossKicker =
+      this.mode === 'bossrush'
+        ? `BOSS RUSH · GUARDIAN ${roman(this.stageIndex + 1)} OF ${roman(STAGES.length)}`
+        : 'GUARDIAN OF THE RAIL';
     this.hud.showBanner({
-      kicker: 'GUARDIAN OF THE RAIL',
+      kicker: bossKicker,
       title: this.stage.boss.shortName,
       sub: this.stage.boss.roarLine,
       kind: 'boss',
       duration: 2500,
     });
     this.hud.subtitle(this.stage.introBoss, 6000);
-    this.audio.setBoss(true);
+    this.audio.startBossTheme(this.stage.bossMusic || this.stage.music);
     this.audio.bossRoar();
     this.world.shake(0.9, 1.1);
     this.hud.flash('fire');
@@ -436,7 +920,57 @@ export class Game {
     this.hud.clearLocks();
   }
 
-  onBossPhase(boss, phase) {
+  _grantBossRewards() {
+    const stage = this.stage;
+    const progress = this.save.progress;
+    const bossWasSeen = !!progress.bosses[stage.id];
+    this.save.markBoss(stage.id);
+    this.save.markTrack(`boss:${stage.id}`);
+    if (!bossWasSeen) this.save.progress.totalBosses = (this.save.progress.totalBosses || 0) + 1;
+
+    if (stage.triforcePiece) {
+      const added = this.save.addFragment(stage.triforcePiece);
+      if (added) {
+        this.hud.popup(`${stage.triforcePiece} RECOVERED`, window.innerWidth * 0.5, window.innerHeight * 0.32, 'harmony');
+      }
+    }
+
+    const powerKey = CAMPAIGN_POWERS[this.stageIndex];
+    if (powerKey) {
+      const newlyUnlocked = this.save.unlockPower(powerKey);
+      this.powers[powerKey] = true;
+      if (newlyUnlocked) {
+        if (powerKey === 'courage') this.shieldCharges = Math.max(1, this.shieldCharges);
+        this.hud.popup(`${POWER_INFO[powerKey]?.name || powerKey.toUpperCase()} AWAKENED`, window.innerWidth * 0.5, window.innerHeight * 0.4, 'harmony');
+        this.hud.subtitle(
+          powerKey === 'power'
+            ? '<span class="gold">Din’s Power awakens.</span> Your light now bites deeper into guardians and armor.'
+            : powerKey === 'courage'
+              ? '<span class="green">Farore’s Courage awakens.</span> A ward now shields you from the next wound on every rail.'
+              : '<span class="cyan">Nayru’s Wisdom awakens.</span> Press E to slow the malice and paint your locks in peace.',
+          6000
+        );
+        this.audio.awakenChord();
+      }
+    }
+
+    if (this.mode === 'campaign') {
+      const nextIndex = this.stageIndex + 1;
+      if (nextIndex < STAGES.length) {
+        this.save.unlockThrough(nextIndex);
+        this.save.setCampaignStage(nextIndex);
+        this.pendingNextStage = nextIndex;
+      } else {
+        this.pendingNextStage = null;
+        this.save.completeCampaign();
+      }
+    }
+
+    this._syncHudPowers();
+    this.save.save();
+  }
+
+    onBossPhase(boss, phase) {
     if (!boss || boss !== this.boss) return;
     this.hud.setBossMeta({
       phase: `PHASE ${roman(phase)}`,
@@ -455,7 +989,7 @@ export class Game {
   }
 
   onBossDefeated(boss) {
-    if (this.state === 'CLEAR' || this.state === 'RESULTS' || this.state === 'VICTORY') return;
+    if (['CLEAR', 'RESULTS', 'VICTORY', 'BOSS_RUSH_RESULTS'].includes(this.state)) return;
     this.state = 'CLEAR';
     this.input.setEnabled(false);
     this.hud.hideReticle();
@@ -471,19 +1005,32 @@ export class Game {
     this.stats.bossKills += 1;
     this.runStats.bossKills += 1;
     this.runPlayTime = (this.runPlayTime || 0) + this.stageElapsed;
+    this.stats.maxAwaken = Math.max(this.stats.maxAwaken, this.awaken);
+    this.runStats.maxAwaken = Math.max(this.runStats.maxAwaken, this.awaken);
     this.hud.setScore(this.score);
     this.hud.setBossHealth(0);
     this.audio.stopMusic(2.4);
-    this.audio.fanfare();
     this.audio.stopDrone(1.6);
+    this.audio.fanfare();
     this.world.shake(1.0, 1.6);
     this.world.punchFov(4);
     this.hud.flash('fire');
+
+    this._grantBossRewards();
+    if (this.mode === 'bossrush') {
+      this.bossRushCleared = Math.max(this.bossRushCleared, this.stageIndex + 1);
+    }
+
+    // Every guardian yields a heart container and a breath of relief.
+    const oldMax = this.maxHealth;
     this.maxHealth = Math.min(MAX_HEALTH, this.maxHealth + 4);
-    this.health = this.maxHealth;
+    const gainedContainer = this.maxHealth - oldMax;
+    this.health = Math.min(this.maxHealth, this.health + 8 + gainedContainer);
+    if (this.powers.courage) this.shieldCharges = Math.max(1, this.shieldCharges);
     this.hud.setHearts(this.health, this.maxHealth, { animate: true });
-    this.stats.maxAwaken = Math.max(this.stats.maxAwaken, this.awaken);
-    this.runStats.maxAwaken = Math.max(this.runStats.maxAwaken, this.awaken);
+    this.hud.setRupees(this.rupees);
+    this._syncHudPowers();
+
     for (const p of this.projectiles) p.remove();
     this.projectiles = [];
     for (const enemy of this.enemies) enemy.remove();
@@ -493,6 +1040,9 @@ export class Game {
     this.enemyLayer.visible = false;
     this.projectileLayer.visible = false;
     document.body.classList.remove('is-playing');
+
+    // Leaving the controller to rest while the cinematic plays.
+    if (this.input.gamepadConnected) this.input.padDown = false;
   }
 
   _hideBossScene() {
@@ -500,40 +1050,156 @@ export class Game {
     this.world.bossFxLayer.visible = false;
   }
 
-  _finishStage() {
-    if (this.stageIndex >= STAGES.length - 1) {
-      this.showVictory();
-      return;
-    }
-    this.state = 'RESULTS';
-    this._hideBossScene();
-    this.hud.hideBoss();
-    this.hud.showHud(false);
-    this.hud.hideReticle();
+  _calculateRank() {
     const accuracy = this.stats.spawned > 0 ? this.stats.killed / this.stats.spawned : 1;
     const hitRatio = this.stats.shots > 0 ? this.stats.hits / this.stats.shots : 0;
     const harmonyRatio = this.stats.shots > 0 ? this.stats.harmony / this.stats.shots : 0;
     const rating = accuracy * 2.2 + hitRatio * 1.2 + harmonyRatio * 0.8 + this.stats.maxAwaken * 0.05;
-    const rank = rating >= 2.75 ? 'S' : rating >= 2.2 ? 'A' : rating >= 1.65 ? 'B' : 'C';
+    return rating >= 2.75 ? 'S' : rating >= 2.2 ? 'A' : rating >= 1.65 ? 'B' : 'C';
+  }
+
+  _finalizeRunTotals() {
+    if (this._runTotalsSaved) return;
+    this._runTotalsSaved = true;
+    this.save.addTotals({
+      kills: this.runStats.killed,
+      time: (this.runPlayTime || 0) + (this.state === 'GAMEOVER' ? this.stageElapsed : 0),
+    });
+  }
+
+  _resultStats() {
+    return {
+      ...this.stats,
+      time: formatTime(this.stageElapsed),
+      score: this.score,
+      rupees: this.rupees,
+    };
+  }
+
+  _buildShareText(mode, rank, accuracy) {
+    const stageName = this.stage?.name || 'HYRULE';
+    const modeLabel =
+      mode === 'daily'
+        ? `DAILY RAIL ${this.dailyInfo?.date || localDateKey()}`
+        : mode === 'score'
+          ? `SCORE ATTACK · ${stageName}`
+          : `CAMPAIGN · ${stageName}`;
+    return `REZ: HYRULE — ${modeLabel} — ${this.score.toLocaleString('en-US')} pts · Rank ${rank} · ${Math.round(accuracy * 100)}% shot down — ${SITE_URL}`;
+  }
+
+  _finishStage() {
+    this._hideBossScene();
+    this.hud.hideBoss();
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.subtitle('');
+    this.hud.hint('');
+
+    const rank = this._calculateRank();
+    if (this.mode === 'score') {
+      this.save.recordStage(this.stage.id, {
+        score: this.score,
+        rank,
+        accuracy:
+          this.stats.spawned > 0 ? Math.round((this.stats.killed / this.stats.spawned) * 100) : 100,
+      });
+    }
     const isBest = this._saveBest(this.score);
-    const best = this.highScore;
+    const accuracy = this.stats.spawned > 0 ? this.stats.killed / this.stats.spawned : 1;
+    this.lastShareText = this._buildShareText(this.mode, rank, accuracy);
+    this.lastResult = {
+      mode: this.mode,
+      stage: this.stage.id,
+      stageName: this.stage.name,
+      score: this.score,
+      rank,
+      accuracy,
+    };
+
+    if (this.mode === 'daily') {
+      const date = this.dailyInfo?.date || localDateKey();
+      this.save.recordDaily(date, this.stageIndex, this.score, rank);
+    }
+
+    if (this.mode === 'bossrush') {
+      if (this.stageIndex < STAGES.length - 1) {
+        const next = this.stageIndex + 1;
+        this.bossRushIndex = next;
+        this.health = this.maxHealth;
+        this.shieldCharges = this.powers.courage ? 1 : 0;
+        this.audio.stopMusic(0.25);
+        this.hud.hideScreen();
+        this._loadStage(next, { story: false, bossOnly: true });
+        return;
+      }
+      this.showBossRushResults();
+      return;
+    }
+
+    const nextIndex = this.stageIndex + 1;
+    const nextStage = nextIndex < STAGES.length ? STAGES[nextIndex] : null;
+
+    if (this.mode === 'campaign' && !nextStage) {
+      this._pendingVictoryBest = isBest;
+      this._finalizeRunTotals();
+      this.save.completeCampaign();
+      this.save.progress.bestRank = rank;
+      this.save.save();
+      this.showVictory();
+      return;
+    }
+
+    this.state = 'RESULTS';
+    this.pendingNextStage = this.mode === 'campaign' && nextStage ? nextIndex : null;
+    const dailyBest =
+      this.mode === 'daily' && this.save.progress.daily?.date === (this.dailyInfo?.date || '')
+        ? this.save.progress.daily.score
+        : null;
     this.hud.showScreen(
       screenResults({
         stage: this.stage,
-        stats: {
-          ...this.stats,
-          time: formatTime(this.stageElapsed),
-          score: this.score,
-          rupees: this.rupees,
-        },
+        stats: this._resultStats(),
         rank,
         piece: this.stage.triforcePiece,
-        best,
+        best: this.highScore,
         isBest,
+        mode: this.mode,
+        nextStage,
+        stageBest: this.save.progress.stageBest[this.stage.id] || null,
+        dailyBest,
+        dailyDate: this.dailyInfo?.date || localDateKey(),
       }),
       { dim: true }
     );
     this.audio.uiConfirm();
+    this.save.save();
+  }
+
+  showBossRushResults() {
+    this.state = 'BOSS_RUSH_RESULTS';
+    this.input.setEnabled(false);
+    this._hideBossScene();
+    this.hud.hideBoss();
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hint('');
+    this.hud.subtitle('');
+    this.audio.stopMusic(0.6);
+    this.audio.fanfare();
+    this._finalizeRunTotals();
+    const isBest = this.save.recordBossRush(this.score);
+    this._saveBest(this.score);
+    this.hud.showScreen(
+      screenBossRushResults({
+        score: this.score,
+        best: this.save.progress.bossRushBest,
+        time: formatTime(this.runPlayTime || this.stageElapsed),
+        guardians: this.bossRushCleared || STAGES.length,
+        isBest,
+      }),
+      { dim: true }
+    );
+    document.body.classList.remove('is-playing');
   }
 
   showVictory() {
@@ -546,7 +1212,13 @@ export class Game {
     this.hud.hint('');
     this.hud.subtitle('');
     this.audio.stopMusic(1);
-    const isBest = this._saveBest(this.score);
+    const isBest = this._pendingVictoryBest != null ? this._pendingVictoryBest : this.score > this.save.progress.bestScore;
+    this._pendingVictoryBest = null;
+    this._finalizeRunTotals();
+    this.save.completeCampaign();
+    this._saveBest(this.score);
+    this.save.progress.bestRank = this.save.progress.bestRank || 'S';
+    this.save.save();
     this.runStats.maxAwaken = Math.max(this.runStats.maxAwaken, this.awaken);
     this.hud.showScreen(
       screenVictory({
@@ -562,6 +1234,7 @@ export class Game {
       { dim: true }
     );
     this.audio.fanfare();
+    document.body.classList.remove('is-playing');
   }
 
   gameOver() {
@@ -575,9 +1248,10 @@ export class Game {
     this.hud.subtitle('');
     this.audio.stopMusic(1.4);
     this.audio.defeat();
+    this._saveBest(this.score);
+    this._finalizeRunTotals();
     this.locks = [];
     this.fireQueue = [];
-    this._saveBest(this.score);
     this.hud.showScreen(
       screenGameOver({
         stage: this.stage,
@@ -585,10 +1259,26 @@ export class Game {
         best: this.highScore,
         killed: this.stats.killed,
         spawned: this.stats.spawned,
+        mode: this.mode,
       }),
       { dim: true }
     );
     document.body.classList.remove('is-playing');
+  }
+
+  _showPauseScreen() {
+    this.hud.showScreen(
+      screenPause({
+        stage: this.stage,
+        score: this.score,
+        rupees: this.rupees,
+        hearts: this.health,
+        awakened: this.awaken,
+        muted: this.audio.muted,
+        mode: this.mode,
+      }),
+      { dim: true }
+    );
   }
 
   pauseGame() {
@@ -601,17 +1291,7 @@ export class Game {
     this.hud.clearLocks();
     this.locks = [];
     this.fireQueue = [];
-    this.hud.showScreen(
-      screenPause({
-        stage: this.stage,
-        score: this.score,
-        rupees: this.rupees,
-        hearts: this.health,
-        awakened: this.awaken,
-        muted: this.audio.muted,
-      }),
-      { dim: true }
-    );
+    this._showPauseScreen();
     document.body.classList.remove('is-playing');
   }
 
@@ -627,11 +1307,122 @@ export class Game {
     this.audio.uiConfirm();
   }
 
-  handleAction(action) {
+  /* ------------------------------------------------------------------ */
+  /* shrine                                                             */
+  /* ------------------------------------------------------------------ */
+
+  openShrine() {
+    if (this.mode !== 'campaign' || this.pendingNextStage == null) {
+      this.showTitle();
+      return;
+    }
+    this.audio.uiConfirm();
+    this.state = 'SHRINE';
+    this.input.setEnabled(false);
+    this.hud.hideReticle();
+    this.hud.clearLocks();
+    this.hud.showHud(false);
+    this.hud.subtitle('');
+    this.hud.hint('');
+    this.shrineNextStage = this.pendingNextStage;
+    this.shrinePurchases = this.shrinePurchases || {};
+    this._renderShrine();
+    document.body.classList.remove('is-playing');
+  }
+
+  _renderShrine() {
+    const nextStage = STAGES[this.shrineNextStage];
+    this.hud.showScreen(
+      screenShrine({
+        rupees: this.rupees,
+        health: this.health,
+        maxHealth: this.maxHealth,
+        shieldCharges: this.shieldCharges,
+        purchases: this.shrinePurchases,
+        nextStage,
+      }),
+      { dim: true }
+    );
+  }
+
+  _buyShrine(offer) {
+    if (this.state !== 'SHRINE' || !offer) return;
+    const costs = { heal: 30, heart: 100, lock: 80, shield: 60 };
+    const cost = costs[offer];
+    if (!cost || this.shrinePurchases[offer] || this.rupees < cost) return;
+    if (offer === 'heal' && this.health >= this.maxHealth) return;
+    if (offer === 'heart' && this.maxHealth >= MAX_HEALTH) return;
+    if (offer === 'shield' && this.shieldCharges >= 3) return;
+    this.rupees -= cost;
+    this.shrinePurchases[offer] = true;
+    if (offer === 'heal') {
+      this.health = this.maxHealth;
+    } else if (offer === 'heart') {
+      this.maxHealth = Math.min(MAX_HEALTH, this.maxHealth + 4);
+      this.health = Math.min(this.maxHealth, this.health + 4);
+    } else if (offer === 'lock') {
+      this.pendingExtraLocks = (this.pendingExtraLocks || 0) + 2;
+    } else if (offer === 'shield') {
+      this.shieldCharges += 1;
+    }
+    this.hud.setRupees(this.rupees);
+    this.hud.setHearts(this.health, this.maxHealth, { animate: true });
+    this._syncHudPowers();
+    this.audio.pickup();
+    this._renderShrine();
+  }
+
+  _continueFromShrine() {
+    if (this.shrineNextStage == null) return;
+    this.audio.uiConfirm();
+    const next = this.shrineNextStage;
+    this.state = 'STORY';
+    this.shrineNextStage = null;
+    this._loadStage(next, { story: true });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* actions & input                                                    */
+  /* ------------------------------------------------------------------ */
+
+  handleAction(action, button = null) {
     switch (action) {
       case 'start':
         this.audio.unlock();
-        this.startNewGame();
+        this.startCampaign();
+        break;
+      case 'stage-select':
+        this.showStageSelect();
+        break;
+      case 'score-stage':
+        this.startScoreAttack(Number(button?.dataset?.stage));
+        break;
+      case 'boss-rush':
+        this.startBossRush();
+        break;
+      case 'daily':
+        this.startDaily();
+        break;
+      case 'gallery':
+        this.openGallery(this.state === 'VICTORY' ? 'VICTORY' : 'TITLE');
+        break;
+      case 'gallery-tab':
+        this._selectGalleryTab(button?.dataset?.tab);
+        break;
+      case 'preview-track':
+        this._previewTrack(button?.dataset?.track);
+        break;
+      case 'options':
+        this.openOptions(this.state === 'PAUSED' ? 'PAUSED' : 'TITLE');
+        break;
+      case 'back-options':
+        this.closeOptions();
+        break;
+      case 'reset-settings':
+        Object.assign(this.save.settings, DEFAULT_SETTINGS);
+        this.save.save();
+        this.applyAllSettings();
+        this._renderOptions();
         break;
       case 'continue':
         this.audio.unlock();
@@ -644,38 +1435,136 @@ export class Game {
         this.nextStage();
         break;
       case 'retry':
+      case 'retry-stage':
         this.audio.unlock();
         this.audio.uiConfirm();
         this.restartStage();
         break;
-      case 'title':
+      case 'retry-rush':
         this.audio.unlock();
         this.audio.uiConfirm();
-        this.showTitle();
+        this.startBossRush();
+        break;
+      case 'open-shrine':
+        this.openShrine();
+        break;
+      case 'shrine-buy':
+        this._buyShrine(button?.dataset?.offer);
+        break;
+      case 'shrine-continue':
+        this._continueFromShrine();
+        break;
+      case 'share-result':
+        this._shareResult();
+        break;
+      case 'back-title':
+      case 'title':
+        this._returnToTitle();
         break;
       case 'resume':
         this.resumeGame();
         break;
-      case 'mute':
+      case 'mute': {
         this.audio.unlock();
         this.audio.toggleMuted();
-        this.hud.showScreen(
-          screenPause({
-            stage: this.stage,
-            score: this.score,
-            rupees: this.rupees,
-            hearts: this.health,
-            awakened: this.awaken,
-            muted: this.audio.muted,
-          }),
-          { dim: true }
-        );
+        if (this.state === 'PAUSED') this._showPauseScreen();
         break;
+      }
       case 'restart-full':
-        this.startNewGame();
+        this.startCampaign();
         break;
       default:
         break;
+    }
+  }
+
+  _returnToTitle() {
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    if (this.state === 'GALLERY') {
+      this.galleryReturn = 'TITLE';
+      this.closeGallery();
+      return;
+    }
+    this.audio.stopMusic(0.2);
+    this.galleryTrack = null;
+    this.showTitle();
+  }
+
+  _renderOptions() {
+    this.hud.showScreen(
+      screenOptions({
+        settings: this.settings,
+        gamepadConnected: !!this.input.gamepadConnected,
+      }),
+      { dim: true }
+    );
+  }
+
+  activateWisdom() {
+    if (!this.powers.wisdom) return;
+    if (this.state !== 'PLAYING' && this.state !== 'BOSS') return;
+    if (this.wisdomActive > 0 || this.wisdomCooldown > 0) return;
+    this.wisdomActive = ABILITY_DURATION;
+    this.wisdomCooldown = ABILITY_COOLDOWN;
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this.fx.spawnWave(this.player.getPosition(), 0x8ef7ff, { size: 6, life: 0.6 });
+    this.hud.subtitle('<span class="cyan">Nayru’s Focus.</span> The malice slows; your hand does not.', 2600);
+    this.hud.setWisdom({ active: this.wisdomActive, cooldown: this.wisdomCooldown, duration: ABILITY_DURATION });
+    this.world.punchFov(1.5);
+  }
+
+  onPadButton(button) {
+    if (button === 'menu-next' || button === 'menu-prev') {
+      this._cycleScreenFocus(button === 'menu-next' ? 1 : -1);
+      return;
+    }
+    if (button === 'ability') {
+      this.activateWisdom();
+      return;
+    }
+    if (button === 'pause') {
+      if (this.state === 'PLAYING' || this.state === 'BOSS') this.pauseGame();
+      else if (this.state === 'PAUSED') this.resumeGame();
+      return;
+    }
+    if (button === 'back') {
+      if (this.state === 'OPTIONS') this.closeOptions();
+      else if (this.state === 'STAGE_SELECT' || this.state === 'GALLERY') this._returnToTitle();
+      else if (this.state === 'PAUSED') this.resumeGame();
+      return;
+    }
+    if (button === 'confirm') {
+      // If a menu button has pad focus, let A press that instead of the default.
+      const focused = document.activeElement;
+      if (
+        focused &&
+        this.hud.screenEl.contains(focused) &&
+        focused.tagName === 'BUTTON' &&
+        !focused.disabled
+      ) {
+        focused.click();
+        return;
+      }
+      switch (this.state) {
+        case 'TITLE':
+          this.startCampaign();
+          break;
+        case 'STORY':
+          this.audio.uiConfirm();
+          this.beginPlay();
+          break;
+        case 'PAUSED':
+          this.resumeGame();
+          break;
+        case 'PLAYING':
+        case 'BOSS':
+          break;
+        default:
+          this._clickPrimary();
+          break;
+      }
     }
   }
 
@@ -683,54 +1572,59 @@ export class Game {
     if (event.repeat) return;
     if (code === 'KeyM') {
       this.audio.unlock();
-      const muted = this.audio.toggleMuted();
-      if (this.state === 'PAUSED') {
-        this.hud.showScreen(
-          screenPause({
-            stage: this.stage,
-            score: this.score,
-            rupees: this.rupees,
-            hearts: this.health,
-            awakened: this.awaken,
-            muted,
-          }),
-          { dim: true }
-        );
-      }
+      this.audio.toggleMuted();
+      if (this.state === 'PAUSED') this._showPauseScreen();
       return;
     }
     if (code === 'KeyF') {
       this.toggleFullscreen();
       return;
     }
+    if (code === 'KeyE') {
+      this.activateWisdom();
+      return;
+    }
     if (code === 'Escape' || code === 'KeyP') {
-      if (this.state === 'PLAYING' || this.state === 'BOSS') this.pauseGame();
-      else if (this.state === 'PAUSED') this.resumeGame();
+      switch (this.state) {
+        case 'OPTIONS':
+          this.closeOptions();
+          break;
+        case 'STAGE_SELECT':
+        case 'GALLERY':
+          this._returnToTitle();
+          break;
+        case 'PLAYING':
+        case 'BOSS':
+          this.pauseGame();
+          break;
+        case 'PAUSED':
+          this.resumeGame();
+          break;
+        default:
+          break;
+      }
       return;
     }
     if (code === 'Enter' || code === 'NumpadEnter') {
       this.audio.unlock();
       switch (this.state) {
         case 'TITLE':
-          this.startNewGame();
+          this.startCampaign();
           break;
         case 'STORY':
           this.audio.uiConfirm();
           this.beginPlay();
           break;
-        case 'RESULTS':
-          this.nextStage();
-          break;
-        case 'GAMEOVER':
-          this.restartStage();
-          break;
-        case 'VICTORY':
-          this.showTitle();
-          break;
         case 'PAUSED':
           this.resumeGame();
           break;
+        case 'PLAYING':
+        case 'BOSS':
+        case 'STAGE_SELECT':
+        case 'GALLERY':
+          break;
         default:
+          this._clickPrimary();
           break;
       }
     }
@@ -753,7 +1647,10 @@ export class Game {
   /* ------------------------------------------------------------------ */
 
   update(dt) {
-    if (this.state === 'PAUSED') return;
+    if (this.state === 'PAUSED') {
+      this.input.update(dt);
+      return;
+    }
     this.clock += dt;
     this.input.update(dt);
     const state = this.state;
@@ -766,7 +1663,16 @@ export class Game {
       this._updateAttract(dt, 4.2);
       return;
     }
-    if (state === 'RESULTS' || state === 'GAMEOVER' || state === 'VICTORY') {
+    if (
+      state === 'RESULTS' ||
+      state === 'GAMEOVER' ||
+      state === 'VICTORY' ||
+      state === 'OPTIONS' ||
+      state === 'GALLERY' ||
+      state === 'STAGE_SELECT' ||
+      state === 'SHRINE' ||
+      state === 'BOSS_RUSH_RESULTS'
+    ) {
       this._updateMenuScene(dt);
       return;
     }
@@ -810,6 +1716,14 @@ export class Game {
     const isBoss = this.state === 'BOSS';
     const difficulty = STAGE_DIFFICULTY[this.stageIndex];
 
+    if (this.wisdomActive > 0) this.wisdomActive = Math.max(0, this.wisdomActive - dt);
+    if (this.wisdomCooldown > 0) this.wisdomCooldown = Math.max(0, this.wisdomCooldown - dt);
+    if (this.harmonyTimer > 0) {
+      this.harmonyTimer = Math.max(0, this.harmonyTimer - dt);
+      if (this.harmonyTimer === 0) this.harmonyChain = 0;
+    }
+    const maliceScale = this.wisdomActive > 0 ? 0.32 : 1;
+
     // Speed ramps smoothly toward the target.
     this.playerSpeed = damp(this.playerSpeed, this.speedTarget, isBoss ? 1.2 : 0.9, dt);
     if (this.playerDistance < this.bossTrigger || !isBoss) {
@@ -836,7 +1750,7 @@ export class Game {
 
     // Boss & minion logic.
     if (this.boss) {
-      this.boss.update(dt, this);
+      this.boss.update(dt * maliceScale, this);
       if (!isBoss) {
         // Keep dying boss animation but no targeting.
       }
@@ -847,7 +1761,7 @@ export class Game {
       this.waveTimer -= dt;
       if (this.waveTimer <= 0) {
         this._spawnWave();
-        this.waveTimer = difficulty.spawnRate * (0.82 + Math.random() * 0.4);
+        this.waveTimer = difficulty.spawnRate * (0.82 + this.random() * 0.4);
       }
       if (!this.boss && this.playerDistance >= this.bossTrigger) {
         this._startBoss();
@@ -866,7 +1780,7 @@ export class Game {
         this.enemies.splice(i, 1);
         continue;
       }
-      e.update(dt, this);
+      e.update(dt * maliceScale, this);
     }
 
     // Projectiles.
@@ -876,7 +1790,7 @@ export class Game {
         this.projectiles.splice(i, 1);
         continue;
       }
-      p.update(dt, this);
+      p.update(dt * maliceScale, this);
     }
 
     // Heart pickups.
@@ -887,6 +1801,13 @@ export class Game {
 
     // Targeting & HUD.
     this._updateTargeting(dt);
+    this._updateBeatHud();
+    this._syncChainHud();
+    this.hud.setWisdom({
+      active: this.wisdomActive,
+      cooldown: this.wisdomCooldown,
+      duration: ABILITY_DURATION,
+    });
 
     this.fx.update(dt);
 
@@ -895,6 +1816,26 @@ export class Game {
       this.hud.root.style.filter = `drop-shadow(0 0 ${(4 - this.health) * 2}px rgba(255,60,90,.3))`;
     } else if (this.hud.root.style.filter) {
       this.hud.root.style.filter = '';
+    }
+  }
+
+  _updateBeatHud() {
+    const info = this.audio.getBeatInfo();
+    if (!info.playing) {
+      this.hud.setBeat(0, 99, false);
+      return;
+    }
+    this.hud.setBeat(info.phase, this.audio.beatError(), true);
+  }
+
+  _syncChainHud() {
+    if (
+      this._lastChainDisplay.combo !== this.combo ||
+      this._lastChainDisplay.harmony !== this.harmonyChain
+    ) {
+      this._lastChainDisplay.combo = this.combo;
+      this._lastChainDisplay.harmony = this.harmonyChain;
+      this.hud.setChain(this.combo, this.harmonyChain);
     }
   }
 
@@ -934,8 +1875,9 @@ export class Game {
     const locks = this.locks.filter((lock) => lock.ref?.alive !== false && lock.pos);
     this.locks = [];
     this.player.setCharging(false);
-    const onBeat = this.audio.isOnBeat(0.11);
-    this.isHarmonicRelease = onBeat;
+    const error = this.audio.beatError();
+    const timing = error < 0.055 ? 'perfect' : error < 0.12 ? 'harmony' : null;
+    this.isHarmonicRelease = !!timing;
 
     if (locks.length === 0 && this.aimTarget && this.aimTarget.ref?.alive !== false) {
       // Simple tap shot.
@@ -943,16 +1885,19 @@ export class Game {
       this.fireQueue = [{ info, index: 0 }];
       this.stats.shots += 1;
       this.runStats.shots += 1;
-      if (onBeat) this._registerHarmony(this.aimTarget.screen);
+      if (timing) this._registerHarmony(this.aimTarget.screen, timing);
     } else if (locks.length > 0) {
       this.fireQueue = locks.map((lock, i) => ({ info: lock.info, index: i }));
       this.stats.shots += locks.length;
       this.runStats.shots += locks.length;
-      if (onBeat) {
-        this._registerHarmony({
-          x: window.innerWidth / 2,
-          y: window.innerHeight * 0.38,
-        });
+      if (timing) {
+        this._registerHarmony(
+          {
+            x: window.innerWidth / 2,
+            y: window.innerHeight * 0.38,
+          },
+          timing
+        );
       }
     }
     this.hud.clearLocks({ fire: true });
@@ -985,7 +1930,7 @@ export class Game {
         duration: 0.3 + item.index * 0.015,
         onArrive: (t) => this._onBeamArrive(t, this.isHarmonicRelease),
       });
-      this.audio.playerNote(this.isHarmonicRelease);
+      this.audio.playerNote(this.isHarmonicRelease, this.harmonyChain);
       this.fireTimer = 0.055;
     }
   }
@@ -998,37 +1943,55 @@ export class Game {
     this.runStats.hits += 1;
     let died = false;
     if (ref instanceof Enemy) {
-      died = ref.takeDamage(1, this);
+      const damage = this.powers.power && ref.armor > 0 ? 2 : 1;
+      died = ref.takeDamage(damage, this);
       if (!died) this._awardHitScore(18, harmonic);
     } else if (ref instanceof Projectile) {
       ref.takeDamage(1, this);
     } else if (this.boss && (ref.isCore !== undefined || this.boss.weakspots.includes(ref))) {
-      const res = this.boss.takeDamageAt(key, 2, this);
+      const res = this.boss.takeDamageAt(key, 2 + (this.powers.power ? 1 : 0), this);
       if (res.hit) this._awardHitScore(res.killed ? 550 : 120, harmonic);
     }
   }
 
   _awardHitScore(amount, harmonic) {
     const comboMult = 1 + Math.min(5, this.combo) * 0.12;
-    this.score += Math.round(amount * comboMult * (harmonic ? 2 : 1));
+    const harmonyMult = 1 + Math.min(10, this.harmonyChain) * 0.04;
+    this.score += Math.round(amount * comboMult * harmonyMult * (harmonic ? 2 : 1));
     this.combo = Math.min(20, this.combo + 1);
     this.comboTimer = 3.2;
     this.hud.setScore(this.score);
   }
 
-  _registerHarmony(screen) {
+  _registerHarmony(screen, timing = 'harmony') {
+    const perfect = timing === 'perfect';
+    this.harmonyChain += 1;
+    this.harmonyTimer = 8;
     this.stats.harmony += 1;
     this.runStats.harmony += 1;
-    this._addAwakenCharge(2);
-    this.score += 140;
+    this._addAwakenCharge(perfect ? 3 : 2);
+    const bonus = (perfect ? 320 : 150) + Math.min(10, this.harmonyChain) * 20;
+    this.score += bonus;
     this.hud.setScore(this.score);
     this.hud.popup(
-      'HARMONY',
+      perfect ? 'PERFECT HARMONY' : 'HARMONY',
       (screen?.x ?? window.innerWidth / 2) + 12,
       (screen?.y ?? window.innerHeight * 0.4) - 44,
       'harmony'
     );
-    this.audio.awakenChord();
+    this.hud.popup(
+      `+${bonus}${this.harmonyChain > 1 ? ` · CHAIN ×${this.harmonyChain}` : ''}`,
+      (screen?.x ?? window.innerWidth / 2) + 12,
+      (screen?.y ?? window.innerHeight * 0.4) - 22,
+      perfect ? 'harmony' : ''
+    );
+    this._syncChainHud();
+    if (perfect) {
+      this.audio.awakenChord();
+      this.world.punchFov(0.9);
+    } else {
+      this.audio.uiConfirm();
+    }
   }
 
   onEnemyKilled(enemy) {
@@ -1060,15 +2023,27 @@ export class Game {
     }
     this._addAwakenCharge(1 + (this.isHarmonicRelease ? 1 : 0));
     this.world.shake(0.16 + enemy.maxHp * 0.02, 0.18);
-    if (this.stats.killed % 9 === 0 || (this.health < this.maxHealth && Math.random() < 0.12)) {
+    if (this.stats.killed % 9 === 0 || (this.health < this.maxHealth && this.random() < 0.12)) {
       this._spawnHeart(pos);
     }
     this._checkRupeeBlessing();
   }
 
   onEnemyLost(enemy) {
-    // The foe peels away untouched; its stray orbs disperse with it.
+    // The foe peels away untouched.
     this._clearEnemyProjectiles(enemy);
+    if (enemy?.cfg?.stealsRupees && this.rupees > 0) {
+      const stolen = Math.min(this.rupees, enemy.cfg.stealsRupees);
+      this.rupees -= stolen;
+      this.hud.setRupees(this.rupees);
+      this.hud.popup(
+        `-${stolen} RUPees`,
+        window.innerWidth * 0.5,
+        window.innerHeight * 0.64,
+        'warn'
+      );
+      this.audio.uiHover();
+    }
   }
 
   _clearEnemyProjectiles(enemy) {
@@ -1100,6 +2075,20 @@ export class Game {
   damagePlayer(amount, source) {
     if (this.state !== 'PLAYING' && this.state !== 'BOSS') return;
     if (this.invulnerable > 0) return;
+
+    // Farore’s Courage: the ward eats the wound instead of the hero.
+    if (this.shieldCharges > 0) {
+      this.shieldCharges -= 1;
+      this.invulnerable = 1.1;
+      this.hud.setPowers(this.powers, this.shieldCharges);
+      this.hud.popup('WARD HOLDS', window.innerWidth * 0.5, window.innerHeight * 0.42, 'harmony');
+      this.fx.spawnWave(this.player.getPosition(), 0x8effc0, { size: 4.2, life: 0.5 });
+      this.audio.wardClang();
+      this.player.damage();
+      this.world.shake(0.25, 0.25);
+      return;
+    }
+
     this.invulnerable = 1.6;
     this.health = Math.max(0, this.health - amount);
     this.hud.setHearts(this.health, this.maxHealth);
@@ -1110,6 +2099,9 @@ export class Game {
     this.audio.damage();
     this.combo = 0;
     this.comboTimer = 0;
+    this.harmonyChain = 0;
+    this.harmonyTimer = 0;
+    this._syncChainHud();
     this.fx.spawnWave(this.player.getPosition(), 0xff425d, { size: 3.4, life: 0.4 });
     this._damageAwaken();
     if (this.health <= 0) {
@@ -1169,7 +2161,7 @@ export class Game {
   }
 
   _maxLocks() {
-    return clamp(4 + Math.floor((this.awaken - 1) / 2), 4, 8);
+    return clamp(4 + Math.floor((this.awaken - 1) / 2) + (this.extraLocks || 0), 4, 8);
   }
 
   _checkRupeeBlessing() {
@@ -1259,6 +2251,7 @@ export class Game {
     for (const slot of slots) {
       if (this.enemies.filter((e) => e.alive).length >= difficulty.maxActive) break;
       const type = pickEnemyType(weights, rng);
+      this.save.markEnemy(type);
       const enemy = new Enemy(this, type, {
         rel: clamp(slot.rel * 0.8, 102, 155),
         lateral: clamp(slot.lateral, -lateralLimit, lateralLimit),
@@ -1275,13 +2268,14 @@ export class Game {
   spawnBossMinions(boss, count) {
     if (!boss || !boss.alive) return;
     for (let i = 0; i < count; i++) {
-      const type = pickEnemyType(this.stage.enemies, Math.random);
+      const type = pickEnemyType(this.stage.enemies, () => this.random());
+      this.save.markEnemy(type);
       const narrow = window.innerWidth / Math.max(1, window.innerHeight) < 1;
       const enemy = new Enemy(this, type, {
-        rel: 105 + Math.random() * 45,
-        lateral: (Math.random() - 0.5) * (narrow ? 12 : 16),
-        height: -1 + Math.random() * (narrow ? 5 : 7),
-        scale: 0.95 + Math.random() * 0.2,
+        rel: 105 + this.random() * 45,
+        lateral: (this.random() - 0.5) * (narrow ? 12 : 16),
+        height: -1 + this.random() * (narrow ? 5 : 7),
+        scale: 0.95 + this.random() * 0.2,
       });
       this.enemies.push(enemy);
       this.stats.spawned += 1;
@@ -1292,8 +2286,8 @@ export class Game {
 
   spawnEnemyProjectile(enemy, opts) {
     const f = this.rail.frameAt(this.playerDistance);
-    const lateral = (Math.random() - 0.5) * (opts.spread || 1) * 1.8;
-    const vertical = (Math.random() - 0.5) * 1.4;
+    const lateral = (this.random() - 0.5) * (opts.spread || 1) * 1.8;
+    const vertical = (this.random() - 0.5) * 1.4;
     const targetOffset = f.right
       .clone()
       .multiplyScalar(lateral)
@@ -1323,8 +2317,8 @@ export class Game {
       .multiplyScalar(offset.x)
       .addScaledVector(f.up, offset.y);
     const origin = (opts.origin || boss.core.pos).clone();
-    origin.addScaledVector(f.right, (Math.random() - 0.5) * 2);
-    origin.addScaledVector(f.up, (Math.random() - 0.5) * 2);
+    origin.addScaledVector(f.right, (this.random() - 0.5) * 2);
+    origin.addScaledVector(f.up, (this.random() - 0.5) * 2);
     const p = new Projectile(this, {
       origin,
       target: this.getPlayerHitPoint(),
@@ -1352,7 +2346,7 @@ export class Game {
     const projected = [];
     const infos = [];
     for (const enemy of this.enemies) {
-      if (enemy.alive) infos.push(enemy.getTargetInfo());
+      if (enemy.alive && enemy.targetable !== false) infos.push(enemy.getTargetInfo());
     }
     for (const projectile of this.projectiles) {
       if (projectile.active) infos.push(projectile.getTargetInfo());
@@ -1367,7 +2361,9 @@ export class Game {
       const y = (-v.y * 0.5 + 0.5) * height;
       const distance = camera.position.distanceTo(info.pos);
       const r = (info.radius / (distance * tan)) * (height * 0.5);
-      const hit = Math.max(24, r * 1.22);
+      const assist =
+        this.settings.lockAssist === 'off' ? 0.78 : this.settings.lockAssist === 'high' ? 1.38 : 1;
+      const hit = Math.max(18, r * 1.22) * assist;
       projected.push({
         info,
         x,
@@ -1420,7 +2416,10 @@ export class Game {
     }
 
     // Drop dead targets.
-    this.locks = this.locks.filter((l) => l.info.ref && l.info.ref.alive !== false && l.info.pos);
+    this.locks = this.locks.filter((l) => {
+      const ref = l.info.ref;
+      return ref && ref.alive !== false && ref.targetable !== false && l.info.pos;
+    });
     this.player.setCharging(this.locks.length > 0);
     if (this.state === 'PLAYING' || this.state === 'BOSS') {
       this.hud.setReticle(

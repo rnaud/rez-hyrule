@@ -32,6 +32,23 @@ export class Hud {
     this.bossSub = document.getElementById('boss-sub');
     this.bossFill = document.getElementById('boss-bar-fill');
 
+    this.powerHud = document.getElementById('power-hud');
+    this.powerPips = new Map(
+      [...document.querySelectorAll('#power-hud .power-pip')].map((el) => [el.dataset.power, el])
+    );
+    this.shieldEl = document.getElementById('power-shields');
+    this.abilityBtn = document.getElementById('ability-btn');
+    this.abilityCd = document.getElementById('ability-cd');
+    this.chainEl = document.getElementById('chain-hud');
+    this.chainValueEl = document.getElementById('chain-value');
+    this.chainHarmonyEl = document.getElementById('chain-harmony');
+    this.runMetaEl = document.getElementById('run-meta');
+    this.beatRingEl = document.getElementById('beat-ring');
+
+    this.subtitlesEnabled = true;
+    this.reduceFlash = false;
+    this.reticlePrefs = { size: 'normal', color: 'gold' };
+
     this._heartRefs = [];
     this._lastQuarters = 0;
     this._lastAwaken = 0;
@@ -44,6 +61,8 @@ export class Hud {
     this._heartGen = 0;
     this._screenVisible = false;
 
+    window.addEventListener('resize', () => this._applyReticlePrefs());
+
     this._injectHeartDefs();
     this._buildAwakenPips();
     this._buildReticlePips(4);
@@ -54,7 +73,7 @@ export class Hud {
       this.onAction(btn.dataset.action, btn);
     });
     this.screenEl.addEventListener('pointerover', (e) => {
-      if (e.target.closest('.btn')) this.onHover();
+      if (e.target.closest('.btn, .mode-btn, .stage-card, .shrine-offer, .gallery-tab, .track-btn')) this.onHover();
     });
   }
 
@@ -111,6 +130,92 @@ export class Hud {
       this.reticleLocksEl.appendChild(pip);
       this._retPips.push(pip);
     }
+  }
+
+  applyPreferences(settings = {}) {
+    this.subtitlesEnabled = settings.subtitles !== false;
+    if (!this.subtitlesEnabled) this.subtitleEl.classList.remove('show');
+    this.reduceFlash = !!settings.reduceFlash;
+    document.body.classList.toggle('reduce-flash', this.reduceFlash);
+    document.body.classList.toggle('reduce-motion', !!settings.reduceShake);
+    this.reticlePrefs = {
+      size: settings.reticleSize || this.reticlePrefs.size,
+      color: settings.reticleColor || this.reticlePrefs.color,
+    };
+    this._applyReticlePrefs();
+  }
+
+  _applyReticlePrefs() {
+    const base = window.innerWidth <= 760 ? 104 : 136;
+    const scale = this.reticlePrefs.size === 'small' ? 0.82 : this.reticlePrefs.size === 'large' ? 1.18 : 1;
+    document.documentElement.style.setProperty('--ret-size', `${Math.round(base * scale)}px`);
+    const colors = {
+      gold: '242, 210, 123',
+      green: '129, 255, 194',
+      cyan: '125, 235, 255',
+      rose: '255, 145, 175',
+    };
+    document.documentElement.style.setProperty('--ret-rgb', colors[this.reticlePrefs.color] || colors.gold);
+    this._maxPips = 0;
+  }
+
+  setBeat(phase, beatError, active = true) {
+    if (!this.beatRingEl) return;
+    const p = phase % 1;
+    const scale = 0.9 + p * 0.22;
+    const opacity = active ? Math.max(0, 0.55 - p * 0.45) : 0;
+    this.beatRingEl.style.transform = `scale(${scale.toFixed(3)})`;
+    this.beatRingEl.style.opacity = opacity.toFixed(3);
+    this.reticleEl.classList.toggle('on-beat', active && beatError < 0.1);
+  }
+
+  setChain(combo, harmonyChain = 0) {
+    if (!this.chainEl) return;
+    const show = combo >= 2 || harmonyChain > 0;
+    this.chainEl.classList.toggle('show', show);
+    if (this.chainValueEl) this.chainValueEl.textContent = `×${Math.max(1, combo)}`;
+    if (this.chainHarmonyEl) {
+      this.chainHarmonyEl.textContent = harmonyChain > 0 ? `HARMONY ${harmonyChain}` : '';
+      this.chainHarmonyEl.classList.toggle('show', harmonyChain > 0);
+    }
+  }
+
+  setPowers({ power = false, courage = false, wisdom = false } = {}, shields = 0) {
+    const unlocked = { power, courage, wisdom };
+    for (const [key, el] of this.powerPips) {
+      if (!el) continue;
+      el.classList.toggle('unlocked', !!unlocked[key]);
+    }
+    if (this.shieldEl) {
+      this.shieldEl.innerHTML = '';
+      for (let i = 0; i < Math.min(3, shields); i++) {
+        const pip = document.createElement('i');
+        pip.className = 'ward-pip';
+        this.shieldEl.appendChild(pip);
+      }
+    }
+    if (this.abilityBtn) {
+      this.abilityBtn.classList.toggle('hidden', !wisdom);
+    }
+  }
+
+  setWisdom({ active = 0, cooldown = 0, duration = 4 } = {}) {
+    if (!this.abilityBtn) return;
+    const isActive = active > 0;
+    const isCooling = cooldown > 0 && !isActive;
+    this.abilityBtn.classList.toggle('active', isActive);
+    this.abilityBtn.classList.toggle('cooling', isCooling);
+    if (this.abilityCd) {
+      this.abilityCd.textContent = isActive ? `${Math.ceil(active)}` : isCooling ? `${Math.ceil(cooldown)}` : '';
+    }
+    this.abilityBtn.setAttribute(
+      'aria-label',
+      isActive ? 'Nayru’s Focus active' : isCooling ? 'Nayru’s Focus cooling down' : 'Activate Nayru’s Focus'
+    );
+  }
+
+  setRunMeta(text = '') {
+    if (this.runMetaEl) this.runMetaEl.textContent = text;
   }
 
   showHud(show = true) {
@@ -313,7 +418,7 @@ export class Hud {
 
   subtitle(text, duration = 5200) {
     window.clearTimeout(this._timers.subtitle);
-    if (!text) {
+    if (!text || !this.subtitlesEnabled) {
       this.subtitleEl.classList.remove('show');
       return;
     }
