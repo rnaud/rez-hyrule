@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#03080a" />
+    <meta name="description" content="REZ: HYRULE — a Rez-inspired rail shooter set in the realm of Hyrule. Awaken the Triforce. Built with three.js." />
+    <title>REZ: HYRULE — Awaken the Triforce</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2303080a'/%3E%3Cpath d='M32 10 54 48 10 48Z M32 26 24 40 40 40Z' fill='none' stroke='%23f6d77b' stroke-width='2.5'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage-canvas"></canvas>
+
+      <div class="fx-layer" aria-hidden="true">
+        <div class="fx-vignette"></div>
+        <div class="fx-scan"></div>
+        <div class="fx-grain"></div>
+      </div>
+
+      <div id="game-ui">
+        <div id="reticle" class="hidden" aria-hidden="true">
+          <svg class="reticle-svg" viewBox="0 0 120 120">
+            <circle class="ret-bg" cx="60" cy="60" r="44" />
+            <circle class="ret-soft" cx="60" cy="60" r="46" />
+            <circle class="ret-ring" cx="60" cy="60" r="33" />
+            <circle class="ret-dash" cx="60" cy="60" r="24" />
+            <path class="ret-tick" d="M60 2v12M60 106v12M2 60h12M106 60h12" />
+            <path class="ret-bracket" d="M14 34v-8a12 12 0 0 1 12-12h8M86 14h8a12 12 0 0 1 12 12v8M106 86v8a12 12 0 0 1-12 12h-8M34 106h-8a12 12 0 0 1-12-12v-8" />
+            <path class="ret-diamond" d="M60 48l12 12-12 12-12-12z" />
+            <circle class="ret-core" cx="60" cy="60" r="2.5" />
+          </svg>
+          <div id="reticle-locks" aria-hidden="true"></div>
+        </div>
+
+        <div id="lock-layer" aria-hidden="true"></div>
+        <div id="popup-layer" aria-hidden="true"></div>
+
+        <header id="hud" class="hidden">
+          <div class="hud-left">
+            <div id="hearts" class="hearts" aria-label="Hearts"></div>
+            <div class="awaken-row">
+              <span class="hud-label">AWAKEN</span>
+              <div id="awaken-pips" class="awaken-pips"></div>
+              <span id="awaken-level" class="awaken-level">1</span>
+            </div>
+          </div>
+
+          <div id="boss-hud" class="boss-hud hidden">
+            <div class="boss-meta">
+              <span class="boss-sigil">△</span>
+              <span id="boss-name">GUARDIAN</span>
+              <span id="boss-phase" class="boss-phase">PHASE I</span>
+            </div>
+            <div class="boss-bar">
+              <div id="boss-bar-fill" class="boss-bar-fill"></div>
+              <div id="boss-bar-notches" class="boss-bar-notches"></div>
+            </div>
+            <div id="boss-sub" class="boss-sub">STRIKE THE MALICE EYES</div>
+          </div>
+
+          <button id="pause-btn" class="pause-btn" aria-label="Pause game" title="Pause">
+            <span></span><span></span>
+          </button>
+
+          <div class="hud-right">
+            <div class="score-block">
+              <span class="hud-label">SPIRIT SCORE</span>
+              <span id="score" class="score">0000000</span>
+            </div>
+            <div class="rupee-line">
+              <svg class="rupee-icon" viewBox="0 0 24 32" aria-hidden="true">
+                <path d="M12 1 22 8v16L12 31 2 24V8Z" />
+                <path d="M7 9h7a5 5 0 0 1 0 10H7M7 9v14" class="rupee-inner" />
+              </svg>
+              <span id="rupees" class="rupees">000</span>
+            </div>
+          </div>
+        </header>
+
+        <div id="banner" class="banner hidden" aria-live="polite">
+          <div class="banner-kicker"></div>
+          <div class="banner-title"></div>
+          <div class="banner-rule"><i></i><span>△</span><i></i></div>
+          <div class="banner-sub"></div>
+        </div>
+
+        <div id="subtitle" class="subtitle" aria-live="polite"></div>
+
+        <div id="hint" class="hint"></div>
+
+        <section id="screen" class="screen hidden" aria-live="polite"></section>
+
+        <div id="flash" class="flash" aria-hidden="true"></div>
+        <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
+
+        <div id="loading" class="loading">
+          <div class="loading-sigil">△</div>
+          <div class="loading-text">AWAKENING THE SPIRIT RAILS</div>
+          <div class="loading-bar"><i></i></div>
+        </div>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="noscript">This legend requires JavaScript and WebGL.</div>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
