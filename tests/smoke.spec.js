@@ -78,6 +78,12 @@ test('all five rails exist and Demise can be summoned', async ({ page }) => {
   await page.evaluate(() => window.__rez._startBoss());
   await expect(page.locator('#boss-name')).toContainText('DEMISE');
   await expect(page.locator('#boss-hud')).toHaveClass(/\bshow\b/);
+
+  // Guardian fights keep the rail moving instead of freezing in place.
+  const before = await page.evaluate(() => window.__rez.playerDistance);
+  await page.waitForTimeout(800);
+  const after = await page.evaluate(() => window.__rez.playerDistance);
+  expect(after).toBeGreaterThan(before + 2);
 });
 
 test('player options persist and the PWA shell works offline', async ({ page, context }) => {

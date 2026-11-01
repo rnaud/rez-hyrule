@@ -214,7 +214,8 @@ export class Boss {
     this.basis.up.copy(f.up);
     this.basis.fwd.copy(f.fwd);
 
-    const sway = Math.sin(this.time * 0.55) * 5.5;
+    const follow = (game.player?.lateral || 0) * 2.8;
+    const sway = Math.sin(this.time * 0.55) * (this.boss ? 4.6 : 5.5) + follow;
     const rise = Math.sin(this.time * 0.9 + 1.2) * 0.8;
     this.center
       .copy(f.pos)
@@ -460,7 +461,6 @@ export class Boss {
     if (destroyed >= this.weakspots.length) {
       this.exposeCore();
     } else {
-      this.phase = Math.max(this.phase, 2);
       this.attackTimer = Math.min(this.attackTimer, 1.4);
       this.game.hud?.flash?.('fire');
     }

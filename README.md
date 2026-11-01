@@ -3,8 +3,8 @@
 **Awaken the Triforce. Become the light on the rails.**
 
 A Rez-inspired rail shooter set in a vector-lit Hyrule, built from scratch with [three.js](https://threejs.org/).
-Fly five sacred rails, paint lock-on sigils across the malice, release them in time with a generative
-synth-score, and gather the three lights before the oldest demon wakes.
+Fly five sacred rails, each with its own palette and its own living score. Paint lock-on sigils across
+the malice, release them in time with the music, and gather the three lights before the oldest demon wakes.
 
 **▶ [Play REZ: HYRULE in your browser](https://rnaud.github.io/rez-hyrule/)**
 
@@ -120,20 +120,44 @@ clears its orbs in flight.
 The kingdom has been stitched shut with malice. As the spirit of the hero, follow the old light through
 five rails:
 
-1. **Hyrule Field** — the golden plain, where the Master Sword stands sentinel and Hyrule Castle smoulders on
-   the horizon. Guardian: **Gohma, the Cursed Eye**. Fragment: **Power**.
-2. **The Lost Woods** — lanterns, hollow trees and a forest that listens. Guardian: **The Ancient Bloom**.
-   Fragment: **Courage**.
-3. **Death Mountain** — lava fissures, obsidian arches and a volcano breathing embers. Guardian:
+1. **Hyrule Field** — a gold-and-emerald plain, where the Master Sword stands sentinel and Hyrule Castle
+   smoulders on the horizon. Guardian: **Gohma, the Cursed Eye**. Fragment: **Power**.
+2. **The Lost Woods** — a violet forest of lanterns, hollow trees and listening shadows. Guardian:
+   **The Ancient Bloom**. Fragment: **Courage**.
+3. **Death Mountain** — ember-red lava fissures, obsidian arches and a volcano breathing sparks. Guardian:
    **King Dodongo, the Furnace**. Fragment: **Wisdom**.
-4. **Hyrule Castle** — a throne room of malice and the last shade of Ganon. Guardian: **The Malice Eye**.
-5. **The Sacred Realm** — a gold-and-glass heaven beyond the last gate. The oldest seal is breaking.
+4. **Hyrule Castle** — a crimson-and-violet throne room of malice and the last shade of Ganon. Guardian:
+   **The Malice Eye**.
+5. **The Sacred Realm** — an ivory-and-cyan heaven beyond the last gate. The oldest seal is breaking.
    Guardian: **Demise, the Imprisoned** — the true final boss.
 
 Every guardian yields a heart container and a rest before the next rail. The first three leave a Triforce
 fragment; each fragment also awakens a goddess power. The final guardian takes all three lights to answer.
 
+## Five palettes, five scores
+
+The rails no longer share a mood. Each level has a dedicated color identity, and the Music Room confirms
+the difference: **Hyrule Field** is a gold-and-emerald plain with a bright, syncopated groove; **The Lost
+Woods** is a violet tea-light forest with a sparse, half-time music-box pulse; **Death Mountain** is
+ember-red with taiko, anvil hits and a brassy horn lead; **Hyrule Castle** is crimson-and-violet with a
+marching organ and harpsichord arpeggios; **The Sacred Realm** is ivory-and-cyan with high bells, choir
+pads and flowing glass arpeggios.
+
+Each track now stretches into a 32-bar form instead of repeating one bar forever. The arrangement moves
+through a main phrase, a B-section, a breakdown and a climax, with alternate chord progressions and
+motifs, drum fills, evolving bass and arpeggio patterns, and small per-run ornaments. Guardian themes use
+the same local identity but darken it, and grow more intense as the boss changes phase. Music layers also
+open earlier, so each rail establishes its own voice sooner.
+
 ## Systems
+
+### Guardian duels keep moving
+
+The rail does not stop when a guardian appears. Link keeps flying at a slower duel speed, the boss holds
+its distance ahead of him, and it leans with his lateral movement. The track ends only after a long
+runway, and the approach eases down near the end instead of cutting to a frozen arena. Phase changes
+still raise the music and the boss patterns.
+
 
 ### The goddess powers
 
@@ -202,11 +226,12 @@ Everything you see and hear is generated at runtime:
   Hylian shield and palm sigil (Link, Keese, Octoroks, Deku Babas, Stalfos, Beamos, Wizzrobes, Armos,
   Poes, Deku Scrubs, Like Likes, and five guardians). No downloaded models or textures.
 - Five **procedural stage corridors** assembled from line batches, each with its own palette, landmarks,
-  skyline, gates, particles and lighting mood — from the golden field to the glass heaven of the Sacred
-  Realm.
-- A **Web Audio synth-score**: ten generative tracks (five rail themes, five guardian themes) with a beating
-  kick, sub bass, hats, arps, pads, bell motifs, reverb and tempo-locked player notes. Player shots are
-  quantized into the current chord and become part of the music.
+  skyline, gates, particles and lighting mood — from the gold-and-emerald field through the violet woods,
+  ember mountain and crimson castle to the ivory-glass Sacred Realm.
+- A **Web Audio synth-score**: ten generative tracks (five rail themes, five guardian themes), each with a
+  stage-specific drum language, bass line, arpeggio voice, pad color and lead instrument. Longer A/B/C
+  forms, fills and per-run ornaments keep the loop alive; player shots are quantized into the current
+  chord and become part of the music.
 - A **bloom post-processing** chain (EffectComposer + UnrealBloomPass + OutputPass) over additive vector
   lines, plus a CSS HUD with a live lock-on reticle, beat ring and chain counter.
 - **Gamepad input** with menu focus, **PWA offline caching**, and a Playwright suite covering the title,

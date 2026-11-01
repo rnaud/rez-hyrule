@@ -451,9 +451,9 @@ export class Game {
     }
     this.audio.stopMusic(0.15);
     if (track.kind === 'boss') {
-      this.audio.startBossTheme(track.config);
+      this.audio.startBossTheme({ ...track.config, style: track.stageId });
     } else {
-      this.audio.startStage(track.config);
+      this.audio.startStage({ ...track.config, style: track.stageId });
       this.audio.setAwaken(10);
     }
     this.galleryTrack = trackId;
@@ -734,7 +734,8 @@ export class Game {
     this.playerDistance = 10;
     this.playerSpeed = 5;
     this.speedTarget = 5;
-    this.bossTrigger = this.rail.length - 330;
+    this.bossTrigger = this.rail.length - 800;
+    this.bossEnd = this.rail.length - 130;
     this.pendingNextStage = null;
     this.stageElapsed = 0;
     this.stats = this._emptyStats();
@@ -799,10 +800,11 @@ export class Game {
   }
 
   _beginBossOnlyFight() {
-    this.playerDistance = Math.max(120, this.rail.length - 340);
+    this.playerDistance = Math.max(140, this.rail.length - 800);
     this.playerSpeed = 0;
     this.speedTarget = 0;
     this.bossTrigger = this.playerDistance;
+    this.bossEnd = this.rail.length - 130;
     this.stageElapsed = 0;
     this.hud.hideScreen();
     this.hud.showHud(true);
@@ -844,7 +846,7 @@ export class Game {
     this.playerDistance = Math.max(10, Math.min(this.playerDistance, 26));
     this.playerSpeed = 8;
     this.quoteFlags = this.stage.story.quotes.map(() => false);
-    this.audio.startStage({ ...this.stage.music });
+    this.audio.startStage({ ...this.stage.music, style: this.stage.id });
     this.audio.setAwaken(this.awaken);
     this._setAwaken(this.awaken, { silent: true });
     this.save.markTrack(`stage:${this.stage.id}`);
@@ -939,7 +941,11 @@ export class Game {
   _startBoss() {
     if (this.boss) return;
     this.state = 'BOSS';
-    this.speedTarget = 0;
+    // The rail keeps moving during a guardian fight. The boss maintains its
+    // distance automatically; this is the cruise speed of the duel.
+    this.speedTarget = this.mode === 'bossrush' ? 10.5 : 13;
+    this.bossEnd = this.rail.length - 130;
+    this.playerSpeed = Math.max(this.playerSpeed, 8);
     this.waveTimer = 9999;
     if (this.mode === 'bossrush') this.bossRushIndex = this.stageIndex;
     this.save.markBoss(this.stage.id);
@@ -977,7 +983,7 @@ export class Game {
       duration: 2500,
     });
     this.hud.subtitle(this.stage.introBoss, 6000);
-    this.audio.startBossTheme(this.stage.bossMusic || this.stage.music);
+    this.audio.startBossTheme({ ...(this.stage.bossMusic || this.stage.music), style: this.stage.id });
     this.audio.bossRoar();
     this.world.shake(0.9, 1.1);
     this.hud.flash('fire');
@@ -1038,6 +1044,7 @@ export class Game {
 
     onBossPhase(boss, phase) {
     if (!boss || boss !== this.boss) return;
+    this.audio.setBossPhase?.(phase);
     this.hud.setBossMeta({
       phase: `PHASE ${roman(phase)}`,
       sub: phase === 3 ? 'THE CORE IS EXPOSED — STRIKE NOW' : this.stage.boss.sub,
@@ -1804,9 +1811,18 @@ export class Game {
     const maliceScale = this.wisdomActive > 0 ? 0.32 : 1;
 
     // Speed ramps smoothly toward the target.
-    this.playerSpeed = damp(this.playerSpeed, this.speedTarget, isBoss ? 1.2 : 0.9, dt);
-    if (this.playerDistance < this.bossTrigger || !isBoss) {
+    this.playerSpeed = damp(this.playerSpeed, this.speedTarget, isBoss ? 1.1 : 0.9, dt);
+    if (!isBoss) {
       this.playerDistance = Math.min(this.rail.length - 24, this.playerDistance + this.playerSpeed * dt);
+    } else {
+      // Keep the duel moving down the rail, easing to a near-stop only if
+      // the fight runs all the way to the end of the stage.
+      const end = this.bossEnd ?? this.rail.length - 130;
+      const remaining = end - this.playerDistance;
+      if (remaining > 0.5) {
+        const ease = clamp(remaining / 150, 0.22, 1);
+        this.playerDistance = Math.min(end, this.playerDistance + this.playerSpeed * ease * dt);
+      }
     }
 
     if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);

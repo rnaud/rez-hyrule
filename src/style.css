@@ -2238,6 +2238,7 @@ body.is-playing .screen:not(.hidden) {
 
 .stage-card {
   position: relative;
+  box-shadow: inset 2px 0 0 var(--stage-a, var(--gold));
   appearance: none;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr) auto 22px;
@@ -2268,7 +2269,7 @@ body.is-playing .screen:not(.hidden) {
 .stage-num {
   font-family: var(--serif);
   font-size: 23px;
-  color: var(--gold);
+  color: var(--stage-a, var(--gold));
   letter-spacing: 0.05em;
   text-align: center;
   border-right: 1px solid rgba(160, 190, 178, 0.15);
@@ -2589,12 +2590,13 @@ body.is-playing .screen:not(.hidden) {
   gap: 14px;
   padding: 12px 15px;
   border-bottom: 1px solid rgba(160, 190, 178, 0.1);
+  box-shadow: inset 2px 0 0 var(--track-a, var(--gold));
 }
 
 .track-card .track-no {
   font-family: var(--serif);
   font-size: 16px;
-  color: var(--gold);
+  color: var(--track-a, var(--gold));
   min-width: 23px;
 }
 

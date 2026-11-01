@@ -130,6 +130,14 @@ export const FRAGMENT_INFO = {
   },
 };
 
+const MUSIC_MOODS = {
+  field: 'GOLDEN GROVE',
+  woods: 'LANTERN VESPERS',
+  mountain: 'FURNACE MARCH',
+  castle: 'MALICE MARCH',
+  sacred: 'SACRED CHOIR',
+};
+
 export const MODE_INFO = {
   campaign: {
     title: 'CAMPAIGN',
@@ -160,6 +168,7 @@ const stageTrack = (stage, index) => ({
   key: midiName(stage.music.root),
   mode: stage.music.mode.toUpperCase(),
   description: stage.chapter,
+  mood: MUSIC_MOODS[stage.id],
   config: stage.music,
 });
 
@@ -174,6 +183,7 @@ const bossTrack = (stage, index) => ({
   key: midiName(stage.bossMusic?.root ?? stage.music.root),
   mode: (stage.bossMusic?.mode ?? stage.music.mode).toUpperCase(),
   description: stage.boss.name,
+  mood: MUSIC_MOODS[stage.id],
   config: stage.bossMusic ?? stage.music,
 });
 

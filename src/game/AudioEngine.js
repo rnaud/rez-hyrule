@@ -19,6 +19,130 @@ const QUALITIES = {
   d: [0, 3, 6, 9],
 };
 
+const STYLE_INFO = {
+  field: {
+    bassPattern: [0, null, 0, 7, null, 0, 3, null, 0, null, 5, 7, null, 3, 2, null],
+    arpPattern: [0, 2, 1, 2, 0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2],
+    arpType: 'triangle',
+    arpGain: 0.05,
+    arpDur: 0.18,
+    arpDelay: 0.34,
+    arpOctave: 0,
+    padFilter: 1500,
+    padType: 'sawtooth',
+    padEvery: 2,
+    padGain: 0.032,
+    padAttack: 0.6,
+    padDetunes: [-7, 6],
+    leadVoice: 'bell',
+    leadGain: 0.046,
+    leadDecay: 1.05,
+    leadFilter: 5200,
+    leadType: 'sine',
+    leadType2: 'triangle',
+    shimmerSteps: [2, 11, 15],
+    shimmerGain: 0.017,
+    bassFilter: 450,
+    bassType: 'sawtooth',
+  },
+  woods: {
+    bassPattern: [0, null, null, 0, 5, null, 3, null, 0, null, null, 7, 5, null, 3, null],
+    arpPattern: [0, null, 2, null, 1, null, 3, null, 4, null, 2, null, 1, null, 3, null],
+    arpType: 'sine',
+    arpGain: 0.032,
+    arpDur: 0.38,
+    arpDelay: 0.56,
+    arpOctave: -12,
+    padFilter: 900,
+    padType: 'triangle',
+    padEvery: 4,
+    padGain: 0.03,
+    padAttack: 1.15,
+    padDetunes: [-10, 9],
+    leadVoice: 'bell',
+    leadGain: 0.038,
+    leadDecay: 1.7,
+    leadFilter: 3200,
+    leadType: 'triangle',
+    leadType2: 'sine',
+    shimmerSteps: [5, 13],
+    shimmerGain: 0.015,
+    bassFilter: 320,
+    bassType: 'sine',
+  },
+  mountain: {
+    bassPattern: [0, 0, null, 3, 0, null, 5, 3, 0, 0, 3, null, 5, 7, 3, null],
+    arpPattern: [0, 1, 2, 1, 0, 1, 2, 1, 0, 2, 1, 2, 0, 1, 2, 1],
+    arpType: 'square',
+    arpGain: 0.04,
+    arpDur: 0.13,
+    arpDelay: 0.22,
+    arpOctave: -12,
+    padFilter: 620,
+    padType: 'sawtooth',
+    padEvery: 2,
+    padGain: 0.044,
+    padAttack: 0.3,
+    padDetunes: [-9, 8],
+    leadVoice: 'horn',
+    leadGain: 0.032,
+    leadDecay: 0.7,
+    leadFilter: 1050,
+    shimmerSteps: [1, 9, 14],
+    shimmerGain: 0.012,
+    bassFilter: 650,
+    bassType: 'sawtooth',
+  },
+  castle: {
+    bassPattern: [0, null, 3, 7, 0, null, 3, 7, 0, null, 5, 3, 7, null, 3, 0],
+    arpPattern: [0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 4, 3, 2, 1, 0, 1],
+    arpType: 'square',
+    arpGain: 0.038,
+    arpDur: 0.16,
+    arpDelay: 0.28,
+    arpOctave: 0,
+    padFilter: 950,
+    padType: 'sawtooth',
+    padEvery: 2,
+    padGain: 0.042,
+    padAttack: 0.45,
+    padDetunes: [-7, 7],
+    leadVoice: 'horn',
+    leadGain: 0.038,
+    leadDecay: 1.15,
+    leadFilter: 1650,
+    shimmerSteps: [4, 12],
+    shimmerGain: 0.02,
+    bassFilter: 430,
+    bassType: 'square',
+  },
+  sacred: {
+    bassPattern: [0, null, 7, null, 5, null, 3, null, 0, null, 7, null, 5, 3, null, 2],
+    arpPattern: [0, 2, 4, 6, 4, 2, 1, 3, 5, 4, 2, 0, 2, 4, 6, 4],
+    arpType: 'triangle',
+    arpGain: 0.045,
+    arpDur: 0.3,
+    arpDelay: 0.52,
+    arpOctave: 12,
+    padFilter: 2200,
+    padType: 'triangle',
+    padEvery: 2,
+    padGain: 0.032,
+    padAttack: 1.35,
+    padDetunes: [-4, 6],
+    leadVoice: 'bell',
+    leadGain: 0.045,
+    leadDecay: 1.5,
+    leadFilter: 6400,
+    leadType: 'sine',
+    leadType2: 'sine',
+    shimmerSteps: [3, 7, 11, 15],
+    shimmerGain: 0.025,
+    bassFilter: 420,
+    bassType: 'sine',
+  },
+};
+
 const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -51,6 +175,9 @@ export class AudioEngine {
     this.layers = { kick: 1, bass: 1, hats: 1, arp: 0, pad: 0, lead: 0, shimmer: 0 };
     this.layerGains = {};
     this._lastHarmony = 0;
+    this.bossPhase = 1;
+    this._lastForm = -1;
+    this.musicSeed = (Math.random() * 0xffffffff) >>> 0;
   }
 
   get available() {
@@ -211,10 +338,10 @@ export class AudioEngine {
       kick: 1,
       bass: 1,
       hats: level >= 1 ? 0.8 : 0.55,
-      arp: level >= 3 ? 0.9 : 0,
-      pad: level >= 5 ? 0.8 : 0,
-      lead: level >= 7 ? 0.85 : 0,
-      shimmer: level >= 9 ? 0.9 : 0,
+      arp: level >= 2 ? 0.82 : 0,
+      pad: level >= 3 ? 0.72 : 0,
+      lead: level >= 5 ? 0.78 : 0,
+      shimmer: level >= 7 ? 0.8 : 0,
     };
   }
 
@@ -245,6 +372,9 @@ export class AudioEngine {
     this.musicStart = this.ctx.currentTime + 0.14;
     this.nextStepTime = this.musicStart;
     this.playerNoteIndex = Math.floor(stage.mode ? 2 : 0);
+    this.bossPhase = 1;
+    this._lastForm = -1;
+    this.musicSeed = (Math.random() * 0xffffffff) >>> 0;
     this.awaken = 1;
     this._applyLayers();
 
@@ -267,6 +397,9 @@ export class AudioEngine {
     this.musicStart = this.ctx.currentTime + 0.12;
     this.nextStepTime = this.musicStart;
     this.playerNoteIndex = 2;
+    this.bossPhase = 1;
+    this._lastForm = -1;
+    this.musicSeed = (Math.random() * 0xffffffff) >>> 0;
     this._applyLayers();
     if (this.musicBus) {
       const t = this.ctx.currentTime;
@@ -284,6 +417,11 @@ export class AudioEngine {
       this._applyLayers();
       this.startDrone();
     }
+  }
+
+  setBossPhase(phase) {
+    this.bossPhase = clamp(Number(phase) || 1, 1, 3);
+    if (this.ctx && this.boss) this._applyLayers();
   }
 
   startDrone() {
@@ -378,7 +516,9 @@ export class AudioEngine {
     if (!this.stage) return [0, 3, 7];
     const info = this.getBeatInfo();
     const bar = Math.max(0, Math.floor(info.beat / 4));
-    const prog = this.stage.progression;
+    const blockBars = this.boss ? 4 : 8;
+    const useB = !!this.stage.progressionB && Math.floor(bar / blockBars) % 2 === 1;
+    const prog = useB ? this.stage.progressionB : this.stage.progression;
     const [offset, quality] = prog[bar % prog.length];
     return QUALITIES[quality].map((iv) => this.stage.root + offset + iv);
   }
@@ -399,82 +539,243 @@ export class AudioEngine {
 
   _scheduleStep(step, time) {
     const stage = this.stage;
+    const styleName = STYLE_INFO[stage.style] ? stage.style : 'field';
+    const style = STYLE_INFO[styleName];
     const barStep = step % 16;
     const bar = Math.floor(step / 16);
-    const prog = stage.progression;
+    const blockBars = this.boss ? 4 : 8;
+    const form = Math.floor(bar / blockBars) % 4;
+    const useB = !!stage.progressionB && Math.floor(bar / blockBars) % 2 === 1;
+    const prog = useB ? stage.progressionB : stage.progression;
     const [offset, quality] = prog[bar % prog.length];
     const chord = QUALITIES[quality].map((iv) => stage.root + offset + iv);
     const scale = SCALES[stage.mode] || SCALES.aeolian;
-
     const g = this.layerGains;
+    const breakdown = form === 2;
+    const climax = form === 3;
+    const salt = (bar * 37 + barStep * 11 + this.musicSeed) >>> 0;
 
-    // --- drums ---
-    if (this.boss) {
-      if (barStep % 4 === 0) this._kick(time, 1.05);
-      if (barStep === 4 || barStep === 12) this._snare(time, 1);
-      const boss16 = barStep % 2 === 0;
-      if (boss16) this._hat(time, barStep % 4 === 2 ? 0.8 : 0.45);
-      if (barStep === 7 || barStep === 15) this._tom(time, 0.6);
-      if (barStep === 10) this._tom(time, 0.35);
-    } else {
-      if (barStep % 4 === 0) this._kick(time, 0.95);
-      if (barStep % 4 === 2 && this.awaken >= 3) this._kick(time, 0.35);
-      if (barStep === 4 || barStep === 12) this._snare(time, 0.85);
-      if (barStep % 2 === 1) this._hat(time, barStep % 4 === 3 ? 0.7 : 0.4);
-      if (this.awaken >= 6 && (barStep === 14 || barStep === 6)) this._hat(time, 0.25, true);
+    // A small accent at the turn of each phrase.
+    if (barStep === 0 && form !== this._lastForm) {
+      this._lastForm = form;
+      this._anvil(time, this.boss ? 0.2 : 0.16);
     }
+
+    this._playDrums(styleName, form, barStep, bar, time);
 
     // --- bass ---
     if (g.bass.gain.value > 0.001) {
-      const bassPattern = [0, null, 0, 7, null, 0, 3, null, 0, null, 0, 7, null, 5, 3, null];
-      const note = bassPattern[barStep];
-      if (note !== null && note !== undefined) {
-        this._bass(time, chord[0] - 12 + note, this.boss ? 0.16 : 0.2);
+      let degree = style.bassPattern[barStep];
+      if (breakdown && barStep !== 0 && barStep !== 8) degree = null;
+      if (this.boss && this.bossPhase === 3 && barStep === 6) degree = 7;
+      if (degree !== null && degree !== undefined) {
+        let note = chord[0] - 12 + degree;
+        if (this.boss && this.bossPhase >= 2 && barStep === 8) note -= 12;
+        this._bass(time, note, this.boss ? 0.16 : 0.2, {
+          filter: style.bassFilter + (climax ? 120 : 0),
+          type: style.bassType,
+        });
       }
-    }
-
-    // --- hats layer adds off-grid ticks ---
-    if (g.hats.gain.value > 0.001 && this.awaken >= 2 && !this.boss) {
-      if (barStep % 4 === 1) this._shaker(time, 0.28);
     }
 
     // --- arpeggio ---
     if (g.arp.gain.value > 0.001) {
-      const arpSeq = [0, 2, 1, 2, 0, 2, 1, 2, 0, 1, 2, 1, 0, 2, 1, 2];
-      const idx = arpSeq[barStep];
-      const octave = barStep % 8 >= 4 ? 12 : 0;
-      const note = chord[idx % chord.length] + 12 + octave + (this.boss ? 12 : 0);
-      this._pluck(time, note, 0.055, 0.18, 'triangle', 0.35);
-      if (this.boss && barStep % 4 === 0) this._pluck(time, note + 12, 0.03, 0.12, 'sine', 0.5);
+      let idx = style.arpPattern[barStep];
+      if (breakdown && barStep % 8 !== 0) idx = null;
+      if (idx !== null && idx !== undefined) {
+        const octave =
+          style.arpOctave + (barStep >= 8 ? 12 : 0) + (climax ? 12 : 0) + (this.boss && this.bossPhase >= 2 ? 12 : 0);
+        const note = chord[idx % chord.length] + 12 + octave;
+        this._pluck(time, note, style.arpGain * (climax ? 1.12 : 1), style.arpDur, style.arpType, style.arpDelay);
+        if (climax && barStep % 8 === 6) {
+          this._pluck(time, note + 12, style.arpGain * 0.42, style.arpDur * 0.8, 'sine', style.arpDelay);
+        }
+        if (!breakdown && salt % 23 === 0) {
+          this._pluck(time, note + 12, style.arpGain * 0.28, style.arpDur * 0.65, 'sine', style.arpDelay);
+        }
+      }
     }
 
-    // --- pads, every other bar ---
-    if (g.pad.gain.value > 0.001 && bar % 2 === 0 && barStep === 0) {
-      const dur = this.beatDur * 8;
-      this._pad(time, chord.map((n) => n + 12), dur, this.boss ? 0.04 : 0.03);
+    // --- pads ---
+    if (g.pad.gain.value > 0.001 && bar % style.padEvery === 0 && barStep === 0) {
+      let padNotes;
+      if (styleName === 'mountain') padNotes = [chord[0] - 12, chord[2]];
+      else if (styleName === 'sacred') padNotes = [chord[0] + 12, chord[1] + 12, chord[2] + 12, chord[0] + 19];
+      else if (styleName === 'castle') padNotes = [chord[0], chord[2], chord[0] + 12];
+      else padNotes = chord.slice(0, 3).map((n) => n + 12);
+      this._pad(time, padNotes, this.beatDur * 4 * style.padEvery, style.padGain * (breakdown ? 1.2 : 1), {
+        filter: style.padFilter + (climax ? 180 : 0),
+        type: style.padType,
+        attack: style.padAttack,
+        detunes: style.padDetunes,
+      });
     }
 
     // --- lead motif ---
     if (g.lead.gain.value > 0.001) {
-      const motif = stage.motif || [0, null, 2, null, 4, null, 3, null, 2, null, 4, null, 1, null, 2, null];
-      const deg = motif[barStep];
-      if (deg !== null && deg !== undefined) {
+      let motif = stage.motif;
+      if (form === 1 || form === 2) motif = stage.motifB || stage.motif;
+      const shift = form === 1 ? 2 : form === 2 ? -1 : 0;
+      let degree = motif[(barStep + shift + 16) % 16];
+      // Leave space in the main phrase; the full melody arrives in the variation.
+      if (!this.boss && form === 0 && bar % 2 === 1) degree = null;
+      if (breakdown && ![0, 4, 8, 12].includes(barStep)) degree = null;
+      if (degree !== null && degree !== undefined) {
         const sc = scale;
-        const oct = Math.floor(deg / sc.length);
-        const note = stage.root + 24 + sc[deg % sc.length] + oct * 12;
-        this._bell(time, note, this.boss ? 0.05 : 0.045, 0.9);
+        const octave = Math.floor(degree / sc.length);
+        let note = stage.root + 24 + sc[degree % sc.length] + octave * 12;
+        if (form === 2) note -= 12;
+        if (form === 3) note += 12;
+        if (this.boss && this.bossPhase >= 3) note += 12;
+        if (style.leadVoice === 'horn') {
+          this._horn(time, note, style.leadGain * (breakdown ? 0.75 : 1), this.boss ? 0.62 : 0.82, style.leadFilter);
+        } else {
+          this._bell(time, note, style.leadGain * (breakdown ? 0.8 : 1), style.leadDecay, {
+            type: style.leadType,
+            type2: style.leadType2,
+            filter: style.leadFilter,
+          });
+        }
+        if (climax && barStep % 8 === 4) {
+          this._bell(time, note + 12, style.leadGain * 0.32, style.leadDecay * 0.7, {
+            type: 'sine',
+            type2: 'triangle',
+            filter: style.leadFilter + 1400,
+          });
+        }
+        if (!this.boss && salt % 31 === 0) {
+          this._bell(time, note - 12, style.leadGain * 0.22, style.leadDecay * 0.65, {
+            type: 'sine',
+            type2: 'sine',
+            filter: style.leadFilter,
+          });
+        }
+      }
+      if (this.boss && this.bossPhase >= 2 && barStep === 12) {
+        const harmony = stage.root + 24 + scale[(bar + 3) % scale.length] + 12;
+        this._bell(time, harmony, style.leadGain * 0.4, 0.8, {
+          type: 'triangle',
+          type2: 'sine',
+          filter: 5000,
+        });
       }
     }
 
-    // --- shimmer layer: high fairy sparkle ---
-    if (g.shimmer.gain.value > 0.001 && (barStep === 2 || barStep === 11 || barStep === 15)) {
-      const note = stage.root + 36 + scale[(bar + barStep) % scale.length];
-      this._bell(time, note, 0.018, 0.5);
+    // --- shimmer ---
+    if (g.shimmer.gain.value > 0.001 && style.shimmerSteps.includes(barStep) && !breakdown) {
+      const note =
+        stage.root + 36 + scale[(bar + barStep) % scale.length] + (climax ? 12 : 0) + (this.bossPhase >= 3 ? 12 : 0);
+      this._bell(time, note, style.shimmerGain * (this.boss ? 1.1 : 1), 0.62, {
+        type: 'sine',
+        type2: 'sine',
+        filter: 7200,
+      });
     }
 
-    // occasional chord stab on boss phase transitions
-    if (this.boss && barStep === 0 && bar % 4 === 0) {
+    // --- section turns and boss accents ---
+    if (!this.boss && climax && barStep === 0) {
+      this._pluck(time, chord[1] + 24, 0.026, 0.9, 'triangle', 0.5);
+    }
+    if (this.boss && barStep === 0 && bar % (this.bossPhase >= 3 ? 2 : 4) === 0) {
       this._pluck(time, chord[0] + 12, 0.03, 1.2, 'sawtooth', 0.2);
+    }
+  }
+
+  _playDrums(styleName, form, barStep, bar, time) {
+    const boss = this.boss;
+    const phase = this.bossPhase || 1;
+    const heavy = boss ? 1.12 : 1;
+    const calm = form === 2 && !boss;
+    const fillBar = bar % (boss ? 2 : 4) === (boss ? 1 : 3);
+    switch (styleName) {
+      case 'woods': {
+        if (barStep === 0 || barStep === 8) this._kick(time, (calm ? 0.55 : 0.78) * heavy);
+        if (!calm && barStep === 3) this._tom(time, 0.2);
+        if (barStep === 4 || barStep === 12) this._rim(time, (calm ? 0.22 : 0.45) * heavy);
+        if (!calm && (barStep === 6 || barStep === 14)) this._shaker(time, 0.2);
+        if (!calm && barStep === 10) this._hat(time, 0.15);
+        if (!calm && barStep === 15 && bar % 2 === 0) this._rim(time, 0.22);
+        if (fillBar && barStep >= 13) this._tom(time + (barStep - 13) * this.stepDur, 0.25);
+        if (boss) {
+          if (barStep === 4 || barStep === 12) this._kick(time, 0.42);
+          if (phase >= 2 && (barStep === 7 || barStep === 15)) this._tom(time, 0.32);
+        }
+        break;
+      }
+      case 'mountain': {
+        const hits = [0, 3, 6, 8, 11, 14];
+        if (!calm && hits.includes(barStep)) {
+          this._kick(time, (barStep === 0 || barStep === 8 ? 1 : 0.54) * heavy);
+        } else if (calm && (barStep === 0 || barStep === 8)) {
+          this._kick(time, 0.6);
+        }
+        if (barStep === 4 || barStep === 12) this._snare(time, (calm ? 0.5 : 0.88) * heavy);
+        if (!calm && (barStep === 2 || barStep === 10)) this._tom(time, 0.42);
+        if (!calm && (barStep === 5 || barStep === 13)) this._anvil(time, 0.28);
+        if (!calm && barStep % 2 === 1) this._hat(time, 0.22);
+        if (fillBar && barStep >= 12) {
+          this._tom(time, 0.46);
+          this._tom(time + this.stepDur * 0.5, 0.32);
+        }
+        if (boss) {
+          if (barStep === 7 || barStep === 15) this._tom(time, 0.46);
+          if (phase >= 2 && (barStep === 1 || barStep === 9)) this._anvil(time, 0.18);
+        }
+        break;
+      }
+      case 'castle': {
+        if (barStep === 0 || barStep === 8) this._kick(time, 0.76 * heavy);
+        if (barStep === 4 || barStep === 12) this._snare(time, (calm ? 0.5 : 0.84) * heavy);
+        if (!calm && (barStep === 3 || barStep === 11)) this._snare(time, 0.2);
+        if (!calm && [2, 6, 10, 14].includes(barStep)) this._hat(time, 0.3);
+        if (!calm && barStep === 15) this._tom(time, 0.28);
+        if (barStep === 0 && bar % 4 === 0) this._anvil(time, 0.16);
+        if (fillBar && barStep >= 13) this._snare(time, 0.28);
+        if (boss) {
+          if (barStep === 2 || barStep === 10) this._rim(time, 0.24);
+          if (phase >= 2 && (barStep === 7 || barStep === 15)) this._snare(time, 0.34);
+          if (phase >= 3 && barStep === 0) this._anvil(time, 0.22);
+        }
+        break;
+      }
+      case 'sacred': {
+        if (barStep === 0 || barStep === 8) this._kick(time, (calm ? 0.4 : 0.58) * heavy);
+        if (!calm && (barStep === 4 || barStep === 12)) this._clap(time, 0.24);
+        if (!calm && (barStep === 2 || barStep === 10 || barStep === 6 || barStep === 14)) this._shaker(time, 0.15);
+        if (!calm && barStep === 15) this._hat(time, 0.18);
+        if (fillBar && barStep >= 14) this._tom(time, 0.18);
+        if (boss) {
+          if (barStep === 4 || barStep === 12) this._kick(time, 0.36);
+          if (phase >= 2 && barStep === 7) this._tom(time, 0.26);
+          if (phase >= 3 && barStep % 4 === 2) this._clap(time, 0.14);
+        }
+        break;
+      }
+      default: {
+        if (calm) {
+          if (barStep === 0 || barStep === 8) this._kick(time, 0.6);
+          if (barStep === 8) this._snare(time, 0.35);
+          if (barStep === 4 || barStep === 12) this._rim(time, 0.2);
+        } else {
+          if (barStep % 4 === 0) this._kick(time, 0.92 * heavy);
+          if (barStep === 4 || barStep === 12) this._snare(time, 0.8 * heavy);
+          if (barStep % 2 === 1) this._hat(time, barStep % 4 === 3 ? 0.62 : 0.36);
+          if (form >= 1 && barStep === 10) this._kick(time, 0.26);
+          if (form === 3 && barStep === 14) this._hat(time, 0.26);
+          if (fillBar && barStep >= 12) this._tom(time, 0.32);
+        }
+        if (boss) {
+          if (barStep === 0 || barStep === 8) this._kick(time, 0.4);
+          if (barStep === 7 || barStep === 15) this._tom(time, 0.32);
+          if (phase >= 2 && barStep === 1) this._anvil(time, 0.14);
+        }
+        break;
+      }
+    }
+    if (boss) {
+      if (phase >= 2 && barStep === 15) this._tom(time, 0.3);
+      if (phase >= 3 && barStep === 0) this._kick(time, 0.5);
+      if (phase >= 3 && (barStep === 5 || barStep === 11)) this._hat(time, 0.28);
     }
   }
 
@@ -583,6 +884,104 @@ export class AudioEngine {
     src.start(time, Math.random(), 0.1);
   }
 
+  _rim(time, vel = 0.4) {
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2600;
+    bp.Q.value = 1.1;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.09 * vel, time + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.layerGains.hats);
+    src.start(time, Math.random() * 1.2, 0.07);
+    const tone = ctx.createOscillator();
+    const tg = ctx.createGain();
+    tone.type = 'triangle';
+    tone.frequency.value = 420;
+    tg.gain.setValueAtTime(0.03 * vel, time);
+    tg.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+    tone.connect(tg);
+    tg.connect(this.layerGains.hats);
+    tone.start(time);
+    tone.stop(time + 0.06);
+  }
+
+  _clap(time, vel = 0.3) {
+    const ctx = this.ctx;
+    for (let i = 0; i < 2; i++) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1450 + i * 500;
+      bp.Q.value = 1.3;
+      const g = ctx.createGain();
+      const at = time + i * 0.015;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.08 * vel, at + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.layerGains.hats);
+      src.start(at, Math.random() * 1.1, 0.18);
+    }
+  }
+
+  _anvil(time, vel = 0.2) {
+    const ctx = this.ctx;
+    [660, 990.5, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = i === 0 ? 'sine' : 'triangle';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.exponentialRampToValueAtTime((0.022 - i * 0.005) * vel * 4, time + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + 0.28 + i * 0.06);
+      osc.connect(g);
+      g.connect(this.layerGains.hats);
+      osc.start(time);
+      osc.stop(time + 0.4);
+    });
+  }
+
+  _horn(time, note, gain = 0.035, dur = 0.8, filterFreq = 1200) {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc2.type = 'triangle';
+    osc.frequency.value = midiHz(note);
+    osc2.frequency.value = midiHz(note) * 0.998;
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(filterFreq, time);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(180, filterFreq * 0.55), time + dur);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.linearRampToValueAtTime(gain, time + 0.08);
+    g.gain.setTargetAtTime(0.0001, time + dur * 0.55, dur * 0.25);
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(g);
+    g.connect(this.layerGains.lead);
+    if (this.reverb) {
+      const send = ctx.createGain();
+      send.gain.value = 0.4;
+      g.connect(send);
+      send.connect(this.reverb);
+    }
+    osc.start(time);
+    osc2.start(time);
+    osc.stop(time + dur + 0.3);
+    osc2.stop(time + dur + 0.3);
+  }
+
   _tom(time, vel = 0.5) {
     const ctx = this.ctx;
     const osc = ctx.createOscillator();
@@ -605,16 +1004,17 @@ export class AudioEngine {
     osc.stop(time + 0.25);
   }
 
-  _bass(time, note, dur) {
+  _bass(time, note, dur, opts = {}) {
     const ctx = this.ctx;
+    const { type = 'sawtooth', filter: filterFreq = this.boss ? 620 : 440 } = opts;
     const osc = ctx.createOscillator();
     const filter = ctx.createBiquadFilter();
     const gain = ctx.createGain();
-    osc.type = 'sawtooth';
+    osc.type = type;
     osc.frequency.value = midiHz(note);
     filter.type = 'lowpass';
     filter.Q.value = 5;
-    filter.frequency.setValueAtTime(this.boss ? 620 : 440, time);
+    filter.frequency.setValueAtTime(filterFreq, time);
     filter.frequency.exponentialRampToValueAtTime(120, time + dur * 0.9);
     gain.gain.setValueAtTime(0.0001, time);
     gain.gain.exponentialRampToValueAtTime(0.11, time + 0.015);
@@ -664,18 +1064,19 @@ export class AudioEngine {
     osc.stop(time + dur + 0.02);
   }
 
-  _bell(time, note, gain = 0.05, decay = 1) {
+  _bell(time, note, gain = 0.05, decay = 1, opts = {}) {
     const ctx = this.ctx;
+    const { type = 'sine', type2 = 'triangle', filter: filterFreq = 5200 } = opts;
     const osc = ctx.createOscillator();
     const osc2 = ctx.createOscillator();
     const g = ctx.createGain();
     const filter = ctx.createBiquadFilter();
-    osc.type = 'sine';
-    osc2.type = 'triangle';
+    osc.type = type;
+    osc2.type = type2;
     osc.frequency.value = midiHz(note);
     osc2.frequency.value = midiHz(note) * 2.01;
     filter.type = 'lowpass';
-    filter.frequency.value = 5200;
+    filter.frequency.value = filterFreq;
     g.gain.setValueAtTime(0.0001, time);
     g.gain.exponentialRampToValueAtTime(gain, time + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, time + 1.6 * decay);
@@ -695,15 +1096,16 @@ export class AudioEngine {
     osc2.stop(time + 1.7 * decay);
   }
 
-  _pad(time, notes, dur, gain) {
+  _pad(time, notes, dur, gain, opts = {}) {
     const ctx = this.ctx;
+    const { filter: filterFreq = this.boss ? 900 : 1300, type = 'sawtooth', attack = 0.7, detunes = [-7, 6] } = opts;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = this.boss ? 900 : 1300;
+    filter.frequency.value = filterFreq;
     filter.Q.value = 0.6;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, time);
-    g.gain.linearRampToValueAtTime(gain, time + 0.7);
+    g.gain.linearRampToValueAtTime(gain, time + attack);
     g.gain.setTargetAtTime(0.0001, time + dur - 0.8, 0.5);
     filter.connect(g);
     g.connect(this.layerGains.pad);
@@ -714,9 +1116,9 @@ export class AudioEngine {
       send.connect(this.reverb);
     }
     for (const note of notes) {
-      for (const det of [-7, 6]) {
+      for (const det of detunes) {
         const osc = ctx.createOscillator();
-        osc.type = 'sawtooth';
+        osc.type = type;
         osc.frequency.value = midiHz(note);
         osc.detune.value = det;
         osc.connect(filter);

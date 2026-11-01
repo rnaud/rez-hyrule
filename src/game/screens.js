@@ -47,6 +47,8 @@ const goldKicker = (text) => `<div class="results-kicker">${text}</div>`;
 
 const formatCount = (value, width = 0) => pad(value, width);
 
+const hexColor = (value) => `#${Number(value).toString(16).padStart(6, '0')}`;
+
 const controlsMarkup = () => `
   <div class="title-controls">
     <div class="control desktop-only"><span class="keys"><span class="keycap">MOUSE</span></span> Aim the light</div>
@@ -143,7 +145,7 @@ export function screenStageSelect({ progress = {} } = {}) {
     const locked = index + 1 > unlocked;
     const best = progress.stageBest?.[stage.id];
     return `
-      <button class="stage-card ${locked ? 'locked' : ''}" data-action="score-stage" data-stage="${index}" ${locked ? 'disabled' : ''}>
+      <button class="stage-card ${locked ? 'locked' : ''}" data-action="score-stage" data-stage="${index}" ${locked ? 'disabled' : ''} style="--stage-a:${hexColor(stage.palette.primary)};--stage-b:${hexColor(stage.palette.secondary)}">
         <span class="stage-num">${roman(index + 1)}</span>
         <span class="stage-info">
           <h3>${stage.name}</h3>
@@ -316,11 +318,12 @@ export function screenGallery({ tab = 'bestiary', progress = {}, playingTrack = 
       ${TRACKS.map((track, index) => {
         const heard = !!tracksSeen[track.id];
         const playing = playingTrack === track.id;
-        return `<div class="track-card ${heard ? '' : 'locked'}">
+        const stageForTrack = STAGES.find((entry) => entry.id === track.stageId);
+        return `<div class="track-card ${heard ? '' : 'locked'}" style="--track-a:${hexColor(stageForTrack?.palette.primary ?? 0xf2d27b)};--track-b:${hexColor(stageForTrack?.palette.secondary ?? 0x2cb890)}">
           <span class="track-no">${String(index + 1).padStart(2, '0')}</span>
           <div class="track-meta">
             <h4>${heard ? track.title : 'Unheard song'}</h4>
-            <p>${heard ? `${track.subtitle} · ${track.bpm} BPM · ${track.key} ${track.mode}` : 'Clear or encounter this rail to unlock the recording.'}</p>
+            <p>${heard ? `${track.subtitle} · ${track.bpm} BPM · ${track.key} ${track.mode} · ${track.mood}` : 'Clear or encounter this rail to unlock the recording.'}</p>
           </div>
           ${heard ? `<button class="track-btn ${playing ? 'playing' : ''}" data-action="preview-track" data-track="${track.id}">${playing ? 'STOP' : 'LISTEN'}</button>` : '<span class="stage-lock">✦</span>'}
         </div>`;
