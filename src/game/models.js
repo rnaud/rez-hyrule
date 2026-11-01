@@ -180,42 +180,161 @@ export function createLink() {
   });
   addWire(body, new THREE.OctahedronGeometry(0.09), COL.gold, { pos: [0, 0.85, 0.4] });
 
-  // --- shoulders / arms ---
+  // --- shoulders / articulated arms ---
   const shoulderY = 1.55;
-  addWire(body, new THREE.IcosahedronGeometry(0.18), COL.tunic, { pos: [-0.38, shoulderY, 0], scale: [1, 0.7, 0.9] });
-  addWire(body, new THREE.IcosahedronGeometry(0.18), COL.tunic, { pos: [0.38, shoulderY, 0], scale: [1, 0.7, 0.9] });
+  for (const side of [-1, 1]) {
+    // Layered pauldrons, not just floating joints.
+    addWire(body, new THREE.IcosahedronGeometry(0.19), COL.tunic, {
+      pos: [side * 0.4, shoulderY, 0],
+      scale: [1.15, 0.7, 1],
+    });
+    addWire(body, new THREE.ConeGeometry(0.16, 0.3, 4), COL.tunicDark, {
+      pos: [side * 0.47, shoulderY + 0.09, 0],
+      rot: [0, 0, side * -1.1],
+      scale: [1, 1, 0.65],
+      opacity: 0.65,
+    });
+    addWire(body, new THREE.TorusGeometry(0.17, 0.018, 4, 8), COL.gold, {
+      pos: [side * 0.4, shoulderY - 0.13, 0],
+      rot: [Math.PI / 2, 0, 0],
+      opacity: 0.55,
+    });
+  }
 
-  const armL = new THREE.Group();
-  armL.name = 'armL';
-  armL.position.set(-0.42, shoulderY - 0.02, 0);
-  armL.rotation.z = -0.18;
-  body.add(armL);
-  addWire(armL, new THREE.CylinderGeometry(0.07, 0.06, 0.58, 5), COL.tunic, { pos: [0, -0.29, 0] });
-  addWire(armL, new THREE.CylinderGeometry(0.06, 0.05, 0.3, 5), COL.skin, { pos: [0, -0.7, 0] });
-  addWire(armL, new THREE.IcosahedronGeometry(0.07), COL.skin, { pos: [0, -0.86, 0] });
+  function buildArm(side) {
+    const arm = new THREE.Group();
+    arm.name = side < 0 ? 'armL' : 'armR';
+    arm.position.set(side * 0.43, shoulderY - 0.02, 0);
+    body.add(arm);
 
-  const armR = new THREE.Group();
-  armR.name = 'armR';
-  armR.position.set(0.42, shoulderY - 0.02, 0);
-  armR.rotation.set(0.1, 0, 0.24);
-  body.add(armR);
-  addWire(armR, new THREE.CylinderGeometry(0.07, 0.06, 0.55, 5), COL.tunic, { pos: [0, -0.27, 0] });
-  addWire(armR, new THREE.CylinderGeometry(0.06, 0.05, 0.28, 5), COL.skin, { pos: [0, -0.66, 0] });
-  addWire(armR, new THREE.IcosahedronGeometry(0.07), COL.skin, { pos: [0, -0.81, 0] });
+    // Sleeve / upper arm.
+    addWire(arm, new THREE.CylinderGeometry(0.08, 0.065, 0.35, 5), COL.tunic, {
+      pos: [0, -0.17, 0],
+    });
+    addWire(arm, new THREE.IcosahedronGeometry(0.085), COL.tunicDark, {
+      pos: [0, -0.34, 0],
+      opacity: 0.8,
+    });
 
-  // --- Master Sword ---
+    const fore = new THREE.Group();
+    fore.name = side < 0 ? 'foreL' : 'foreR';
+    fore.position.set(0, -0.34, 0);
+    arm.add(fore);
+
+    // Forearm and fitted bracer.
+    addWire(fore, new THREE.CylinderGeometry(0.064, 0.052, 0.34, 5), COL.skin, {
+      pos: [0, -0.17, 0],
+    });
+    addWire(fore, new THREE.CylinderGeometry(0.078, 0.062, 0.13, 5), COL.tunicDark, {
+      pos: [0, -0.27, 0],
+      opacity: 0.75,
+    });
+    addWire(fore, new THREE.TorusGeometry(0.064, 0.015, 4, 8), COL.gold, {
+      pos: [0, -0.23, 0],
+      rot: [Math.PI / 2, 0, 0],
+      opacity: 0.75,
+    });
+
+    const hand = new THREE.Group();
+    hand.name = side < 0 ? 'handL' : 'handR';
+    hand.position.set(0, -0.38, 0.02);
+    fore.add(hand);
+    addFill(hand, new THREE.IcosahedronGeometry(0.082), 0x332419, 0.82, { scale: [0.9, 1.05, 0.72] });
+    addWire(hand, new THREE.IcosahedronGeometry(0.082), COL.skin, { scale: [0.9, 1.05, 0.72] });
+
+    if (side < 0) {
+      // Open left palm: fingers and a faint sacred sigil.
+      for (let i = -1; i <= 1; i++) {
+        addPath(hand, [
+          V(i * 0.035, -0.045, 0.035),
+          V(i * 0.065, -0.135, 0.075),
+          V(i * 0.055, -0.19, 0.1),
+        ], COL.skin, { opacity: 0.8 });
+      }
+      addPath(hand, [
+        V(-0.065, -0.01, 0.03),
+        V(-0.14, -0.055, 0.075),
+        V(-0.15, -0.12, 0.1),
+      ], COL.skin, { opacity: 0.75 });
+      addGlow(hand, 0x8ef7ff, 0.5, [0, -0.035, 0.06], 0.18, 'handGlow');
+      addPath(hand, [V(0, 0.105, 0.045), V(-0.11, -0.08, 0.045), V(0.11, -0.08, 0.045)], 0xbfffff, {
+        closed: true,
+        opacity: 0.55,
+        name: 'handSigil',
+      });
+      addPath(hand, [V(0, 0.04, 0.046), V(-0.055, -0.04, 0.046), V(0.055, -0.04, 0.046)], 0xbfffff, {
+        closed: true,
+        opacity: 0.3,
+      });
+    } else {
+      // Sword hand: knuckles wrap around the grip.
+      for (let i = -1; i <= 1; i++) {
+        addPath(hand, [
+          V(i * 0.04, -0.025, 0.04),
+          V(i * 0.055, -0.11, 0.12),
+          V(i * 0.025, -0.16, 0.16),
+        ], COL.skin, { opacity: 0.75 });
+      }
+    }
+    return { arm, fore, hand };
+  }
+
+  const leftArm = buildArm(-1);
+  const rightArm = buildArm(1);
+  const armL = leftArm.arm;
+  const armR = rightArm.arm;
+  const foreL = leftArm.fore;
+  const foreR = rightArm.fore;
+  const handL = leftArm.hand;
+  const handR = rightArm.hand;
+
+  // --- Master Sword, lengthened and brightened so it reads from the chase camera ---
   const sword = new THREE.Group();
   sword.name = 'sword';
-  sword.position.set(0, -0.84, 0.02);
-  sword.rotation.set(-0.36, 0, -0.1);
-  armR.add(sword);
-  addWire(sword, new THREE.BoxGeometry(0.05, 0.95, 0.1), COL.sword, { pos: [0, -0.55, 0] });
-  addWire(sword, new THREE.ConeGeometry(0.035, 0.18, 4), COL.sword, { pos: [0, -1.1, 0], rot: [Math.PI, 0, 0] });
-  addWire(sword, new THREE.BoxGeometry(0.3, 0.055, 0.06), COL.gold, { pos: [0, -0.04, 0] });
-  addWire(sword, new THREE.CylinderGeometry(0.035, 0.035, 0.22, 5), 0x2f7d5c, { pos: [0, 0.11, 0] });
-  addWire(sword, new THREE.OctahedronGeometry(0.07), COL.gold, { pos: [0, 0.24, 0] });
-  const swordGlow = addGlow(sword, 0xbff6ff, 0.24, [0, -0.55, 0], 0.32, 'swordGlow');
+  sword.position.set(0, 0.03, 0.04);
+  sword.rotation.set(0.1, 0, -0.08);
+  handR.add(sword);
+  addWire(sword, new THREE.BoxGeometry(0.095, 1.12, 0.065), COL.sword, {
+    pos: [0, -0.63, 0],
+  });
+  addWire(sword, new THREE.BoxGeometry(0.025, 1.08, 0.095), 0xf1ffff, {
+    pos: [0, -0.64, 0],
+    opacity: 0.55,
+  });
+  addWire(sword, new THREE.ConeGeometry(0.048, 0.2, 4), COL.sword, {
+    pos: [0, -1.27, 0],
+    rot: [Math.PI, 0, 0],
+  });
+  // Swept guard and wrapped grip.
+  addWire(sword, new THREE.BoxGeometry(0.38, 0.055, 0.08), COL.gold, { pos: [0, -0.02, 0] });
+  for (const side of [-1, 1]) {
+    addPath(sword, [
+      V(side * 0.2, -0.02, 0),
+      V(side * 0.31, 0.075, 0),
+      V(side * 0.24, 0.14, 0),
+      V(side * 0.17, 0.035, 0),
+    ], COL.gold, { opacity: 0.8 });
+  }
+  addWire(sword, new THREE.CylinderGeometry(0.04, 0.04, 0.26, 5), 0x2f7d5c, {
+    pos: [0, 0.12, 0],
+  });
+  for (let i = 0; i < 3; i++) {
+    addWire(sword, new THREE.TorusGeometry(0.042, 0.008, 3, 8), COL.gold, {
+      pos: [0, 0.03 + i * 0.09, 0],
+      rot: [Math.PI / 2, 0, 0],
+      opacity: 0.65,
+    });
+  }
+  addWire(sword, new THREE.OctahedronGeometry(0.085), COL.gold, { pos: [0, 0.29, 0] });
+  addTriforce(sword, 0.09, COL.gold, [0, -0.02, 0.07], [0, 0, 0], 0.8);
+  const swordGlow = addGlow(sword, 0xbff6ff, 0.32, [0, -0.66, 0], 0.26, 'swordGlow');
   swordGlow.renderOrder = 2;
+  const tipGlow = addGlow(sword, 0xe6ffff, 0.24, [0, -1.29, 0], 0.35, 'tipGlow');
+  tipGlow.renderOrder = 3;
+  const swordTip = new THREE.Object3D();
+  swordTip.name = 'swordTip';
+  swordTip.position.set(0, -1.36, 0);
+  sword.add(swordTip);
 
   // --- head ---
   const head = new THREE.Group();
@@ -258,15 +377,27 @@ export function createLink() {
   // --- Hylian shield on the back ---
   const shield = new THREE.Group();
   shield.name = 'shield';
-  shield.position.set(0, 1.33, 0.37);
-  shield.rotation.set(0.06, Math.PI, 0.1);
+  shield.position.set(0, 1.33, 0.42);
+  // Keep the decorated face toward the chase camera; Link carries it across his back.
+  shield.rotation.set(0.06, 0, 0.1);
   body.add(shield);
   const shieldGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.06, 6);
   addFill(shield, shieldGeo, COL.shieldDeep, 0.92, { rot: [Math.PI / 2, 0, 0] });
   addWire(shield, shieldGeo, COL.gold, { rot: [Math.PI / 2, 0, 0], scale: [1, 1, 1.1] });
   const inner = new THREE.CylinderGeometry(0.46, 0.46, 0.07, 6);
   addWire(shield, inner, COL.shield, { rot: [Math.PI / 2, 0, 0], pos: [0, 0, 0.02] });
-  addTriforce(shield, 0.42, COL.gold, [0, -0.03, 0.06], [0, 0, 0], 1);
+  // A second ring of silver inlay catches the bloom.
+  addWire(shield, new THREE.CylinderGeometry(0.34, 0.34, 0.075, 6), 0xbff6ff, {
+    rot: [Math.PI / 2, 0, 0],
+    pos: [0, 0, 0.04],
+    opacity: 0.45,
+  });
+  addShape(shield, [
+    [[0, 0.3, 0.09], [-0.18, 0.0, 0.09], [0.18, 0.0, 0.09]],
+    [[-0.2, 0.02, 0.09], [-0.38, -0.3, 0.09], [-0.02, -0.3, 0.09]],
+    [[0.2, 0.02, 0.09], [0.02, -0.3, 0.09], [0.38, -0.3, 0.09]],
+  ], COL.gold, { opacity: 0.55 });
+  addTriforce(shield, 0.42, COL.gold, [0, -0.03, 0.1], [0, 0, 0], 1);
   // shield crest wings
   addPath(shield, [
     V(-0.42, 0.1, 0.06),
@@ -327,8 +458,16 @@ export function createLink() {
     capTip,
     armL,
     armR,
+    foreL,
+    foreR,
+    handL,
+    handR,
     sword,
+    swordTip,
     swordGlow,
+    tipGlow,
+    handGlow: handL.getObjectByName('handGlow'),
+    handSigil: handL.getObjectByName('handSigil'),
     shield,
     fairy,
     aura,

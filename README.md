@@ -198,8 +198,9 @@ never phone home.
 
 Everything you see and hear is generated at runtime:
 
-- A hand-written procedural **wireframe art library** (Link, Keese, Octoroks, Deku Babas, Stalfos, Beamos,
-  Wizzrobes, Armos, Poes, Deku Scrubs, Like Likes, and five guardians). No downloaded models or textures.
+- A hand-written procedural **wireframe art library** with an articulated, sword-high hero, a readable
+  Hylian shield and palm sigil (Link, Keese, Octoroks, Deku Babas, Stalfos, Beamos, Wizzrobes, Armos,
+  Poes, Deku Scrubs, Like Likes, and five guardians). No downloaded models or textures.
 - Five **procedural stage corridors** assembled from line batches, each with its own palette, landmarks,
   skyline, gates, particles and lighting mood — from the golden field to the glass heaven of the Sacred
   Realm.
