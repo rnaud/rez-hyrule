@@ -16,12 +16,17 @@ export class Input {
     this.onLockEnd = null;
     this.onKey = null;
     this.onPadButton = null;
+    this.onPadActive = null;
     this._prevHolding = false;
     this._pointerActive = false;
     this.aimSpeed = 1;
     this.gamepadEnabled = true;
     this.padDown = false;
     this.padIndex = null;
+    this.padId = '';
+    this.gamepadId = '';
+    this.gamepadMapping = '';
+    this._padNotified = false;
     this.padButtons = {};
     this._menuAxisHeld = false;
     this._bind();
@@ -104,9 +109,22 @@ export class Input {
     return now && !prev;
   }
 
+  _down(gp, index) {
+    const button = gp?.buttons?.[index];
+    if (!button) return false;
+    return !!button.pressed || (Number(button.value) || 0) > 0.15;
+  }
+
+  _noticePad() {
+    if (this._padNotified) return;
+    this._padNotified = true;
+    this.onPadActive?.();
+  }
+
   _pollGamepad(dt) {
     if (!this.gamepadEnabled || !navigator.getGamepads) {
       this.padDown = false;
+      this.gamepadConnected = false;
       return;
     }
     let gp = null;
@@ -122,17 +140,26 @@ export class Input {
     if (!gp) {
       this.padDown = false;
       this.padButtons = {};
+      this.gamepadId = '';
+      this.gamepadMapping = '';
+      this._padNotified = false;
       return;
+    }
+    if (this.gamepadId !== gp.id) {
+      this.gamepadId = gp.id || 'Controller';
+      this.gamepadMapping = gp.mapping || 'non-standard';
+      this._padNotified = false;
     }
 
     const confirm = this._edge(gp, 0);
     const back = this._edge(gp, 1);
-    const ability = this._edge(gp, 2);
+    const ability = this._edge(gp, 2) || this._edge(gp, 3);
     const start = this._edge(gp, 9);
+    const select = this._edge(gp, 8);
 
     if (!this.enabled) {
       if (confirm) this.onPadButton?.('confirm');
-      if (back) this.onPadButton?.('back');
+      if (back || select) this.onPadButton?.('back');
       if (start) this.onPadButton?.('confirm');
 
       // Menu navigation: D-pad or either stick. One step per press.
@@ -157,28 +184,48 @@ export class Input {
       return;
     }
     this._menuAxisHeld = false;
-    if (start) this.onPadButton?.('pause');
+    if (start || select) this.onPadButton?.('pause');
     if (ability) this.onPadButton?.('ability');
 
+    // Prefer the right stick; fall back to the left stick and then the D-pad.
     const dead = 0.2;
-    let ax = 0;
-    let ay = 0;
     const lx = gp.axes[0] || 0;
     const ly = gp.axes[1] || 0;
     const rx = gp.axes[2] || 0;
     const ry = gp.axes[3] || 0;
-    if (Math.abs(rx) > Math.abs(lx)) ax = rx;
-    else ax = lx;
-    if (Math.abs(ry) > Math.abs(ly)) ay = ry;
-    else ay = ly;
+    let ax = 0;
+    let ay = 0;
+    if (Math.hypot(rx, ry) >= dead) {
+      ax = rx;
+      ay = ry;
+    } else if (Math.hypot(lx, ly) >= dead) {
+      ax = lx;
+      ay = ly;
+    } else {
+      if (this._down(gp, 14)) ax -= 1;
+      if (this._down(gp, 15)) ax += 1;
+      if (this._down(gp, 12)) ay -= 1;
+      if (this._down(gp, 13)) ay += 1;
+    }
     if (Math.abs(ax) < dead) ax = 0;
     if (Math.abs(ay) < dead) ay = 0;
     if (ax || ay) {
-      const speed = 760 * this.aimSpeed;
+      // Scale speed with the screen so a 1080p handheld is not sluggish.
+      const speed = Math.max(820, window.innerWidth * 0.7) * this.aimSpeed;
+      this._pointerActive = true;
       this._setAim(this.aim.x + ax * speed * dt, this.aim.y + ay * speed * dt);
+      this._noticePad();
     }
 
-    this.padDown = !!(gp.buttons[7]?.pressed || gp.buttons[0]?.pressed);
+    const rightTrigger = gp.buttons[7];
+    const leftTrigger = gp.buttons[6];
+    const triggerDown =
+      (Number(rightTrigger?.value) || 0) > 0.15 ||
+      !!rightTrigger?.pressed ||
+      (Number(leftTrigger?.value) || 0) > 0.15 ||
+      !!leftTrigger?.pressed;
+    this.padDown = triggerDown || this._down(gp, 0);
+    if (this.padDown || ability || start || select) this._noticePad();
   }
 
   setAimCenter() {

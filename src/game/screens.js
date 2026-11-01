@@ -132,6 +132,7 @@ export function screenTitle({ highScore = 0, progress = {}, daily = {}, unlocked
         </button>
       </div>
       ${controlsMarkup()}
+      <div class="controller-help"><span class="keycap">PAD</span> STICK AIM · RT / A LOCK · X NAYRU’S FOCUS · START PAUSE · D-PAD MENUS</div>
       ${footMarkup(highScore, progress)}
     </div>`;
 }
@@ -174,6 +175,7 @@ export function screenStageSelect({ progress = {} } = {}) {
       <div class="screen-actions">
         <button class="btn btn-ghost" data-action="back-title">Back</button>
       </div>
+      <div class="pad-hint">PAD · D-PAD / STICK SELECT · A CONFIRM · B BACK</div>
     </div>`;
 }
 
@@ -222,7 +224,7 @@ const optionToggle = (key, label, desc, checked) => `
     </div>
   </div>`;
 
-export function screenOptions({ settings = {}, gamepadConnected = false } = {}) {
+export function screenOptions({ settings = {}, gamepadConnected = false, gamepadId = '' } = {}) {
   return `
     <div class="screen-inner options-inner">
       <div class="screen-heading">
@@ -248,14 +250,16 @@ export function screenOptions({ settings = {}, gamepadConnected = false } = {}) 
       </div>
       <div class="options-foot">
         <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
-          <span class="pad-status ${gamepadConnected ? 'connected' : ''}"><span class="dot"></span>${gamepadConnected ? 'CONTROLLER CONNECTED' : 'NO CONTROLLER DETECTED'}</span>
-          <span class="option-desc">Gamepad: LMB/RT locks · A fires · X is Nayru’s Focus · Start pauses.</span>
+          <span class="pad-status ${gamepadConnected ? 'connected' : ''}" title="${gamepadId || ''}"><span class="dot"></span>${gamepadConnected ? `CONTROLLER CONNECTED${gamepadId ? ` · ${gamepadId}` : ''}` : 'NO CONTROLLER DETECTED'}</span>
+          <span class="option-desc">Pad: right/left stick aim · RT or A locks · X is Nayru’s Focus · Start pauses · D-pad menus.</span>
         </div>
         <div class="options-actions">
+          <button class="btn btn-ghost" data-action="fullscreen">Fullscreen</button>
           <button class="btn btn-ghost" data-action="reset-settings">Restore defaults</button>
           <button class="btn btn-primary" data-action="back-options">Back</button>
         </div>
       </div>
+      <div class="pad-hint">PAD · D-PAD / STICK MOVE FOCUS · A CONFIRM · B BACK</div>
     </div>`;
 }
 
@@ -381,6 +385,7 @@ export function screenGallery({ tab = 'bestiary', progress = {}, playingTrack = 
         <span class="tiny-kicker">${seenEnemyCount + seenBossCount} records · ${seenTrackCount} songs · ${Object.values(fragments).filter(Boolean).length} relics</span>
         <button class="btn btn-ghost" data-action="back-title">Back to title</button>
       </div>
+      <div class="pad-hint">PAD · D-PAD / STICK SELECT · A CONFIRM · B BACK</div>
     </div>`;
 }
 
@@ -465,10 +470,11 @@ export function screenStory({ stage, index, total }) {
         <span><span class="keycap">ENTER</span> AWAKEN</span>
         <span><span class="keycap">M</span> MUTE</span>
         <span><span class="keycap">E</span> NAYRU’S FOCUS</span>
+        <span><span class="keycap">PAD</span> STICK · RT LOCK · START PAUSE</span>
         <span><span class="keycap">F</span> FULLSCREEN</span>
       </div>
       <div class="story-tip touch-only">
-        <span>TAP THE RAIL TO AWAKEN · HEADPHONES RECOMMENDED</span>
+        <span>TAP THE RAIL TO AWAKEN · PAD: A CONTINUE</span>
       </div>
     </div>`;
 }
@@ -672,13 +678,16 @@ export function screenPause({ stage, score, rupees, hearts, awakened, muted, mod
         <button class="btn btn-ghost" data-action="options">Options</button>
         <button class="btn btn-ghost" data-action="mute">${muted ? 'Unmute music' : 'Mute music'}</button>
         <button class="btn btn-ghost" data-action="retry">Restart stage</button>
+        <button class="btn btn-ghost" data-action="fullscreen">Fullscreen</button>
         <button class="btn btn-ghost" data-action="back-title">Abandon the rail</button>
       </div>
       <div class="title-foot desktop-only" style="margin-top:24px">
         <span><span class="keycap">ESC</span> RESUME</span>
         <span><span class="keycap">M</span> MUTE</span>
         <span><span class="keycap">E</span> NAYRU’S FOCUS</span>
+        <span><span class="keycap">PAD</span> A CONFIRM · B BACK</span>
       </div>
+      <div class="pad-hint">PAD · D-PAD / STICK SELECT · A CONFIRM · START RESUME</div>
     </div>`;
 }
 

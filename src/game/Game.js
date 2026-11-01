@@ -169,10 +169,21 @@ export class Game {
 
     document.getElementById('ability-btn')?.addEventListener('click', () => this.activateWisdom());
     this.input.onPadButton = (button) => this.onPadButton(button);
+    this.input.onPadActive = () => this.onPadActive();
     this.hud.screenEl.addEventListener('input', (e) => this.onSettingInput(e));
     this.hud.screenEl.addEventListener('change', (e) => this.onSettingInput(e));
     window.addEventListener('gamepadconnected', () => this._refreshPadStatus());
     window.addEventListener('gamepaddisconnected', () => this._refreshPadStatus());
+
+    this.soundPromptEl = document.getElementById('sound-prompt');
+    this.soundPromptEl?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this._unlockAudioGesture();
+    });
+    const unlockFromGesture = () => this._unlockAudioGesture();
+    document.addEventListener('pointerdown', unlockFromGesture, { passive: true });
+    document.addEventListener('keydown', unlockFromGesture);
+    this._padHintShown = false;
 
     this.clock = 0;
   }
@@ -294,9 +305,36 @@ export class Game {
       screenOptions({
         settings: this.settings,
         gamepadConnected: !!this.input.gamepadConnected,
+        gamepadId: this._safeGamepadId(),
       }),
       { dim: true }
     );
+  }
+
+  _safeGamepadId() {
+    return String(this.input.gamepadId || '').replace(/[<>&"']/g, '').slice(0, 52);
+  }
+
+  _unlockAudioGesture() {
+    this.audio.unlock();
+    window.setTimeout(() => {
+      if (this.audio.running) this._showSoundPrompt(false);
+    }, 220);
+  }
+
+  _showSoundPrompt(show) {
+    if (!this.soundPromptEl) return;
+    this.soundPromptEl.classList.toggle('hidden', !show);
+  }
+
+  _checkSoundPrompt() {
+    window.setTimeout(() => {
+      if (!this.audio.running && (this.state === 'PLAYING' || this.state === 'BOSS')) {
+        this._showSoundPrompt(true);
+      } else {
+        this._showSoundPrompt(false);
+      }
+    }, 350);
   }
 
   closeOptions() {
@@ -315,8 +353,27 @@ export class Game {
     const el = this.hud.screenEl.querySelector('.pad-status');
     if (!el) return;
     const connected = !!this.input.gamepadConnected;
+    const label = connected
+      ? `CONTROLLER CONNECTED${this._safeGamepadId() ? ` · ${this._safeGamepadId()}` : ''}`
+      : 'NO CONTROLLER DETECTED';
     el.classList.toggle('connected', connected);
-    el.innerHTML = `<span class="dot"></span>${connected ? 'CONTROLLER CONNECTED' : 'NO CONTROLLER DETECTED'}`;
+    el.innerHTML = '<span class="dot"></span><span class="pad-label"></span>';
+    el.querySelector('.pad-label').textContent = label;
+  }
+
+  onPadActive() {
+    if (this.state === 'PLAYING' || this.state === 'BOSS') {
+      if (!this._padHintShown) {
+        this._padHintShown = true;
+        const ability = this.powers.wisdom ? '<span><span class="key">X</span> NAYRU’S FOCUS</span>' : '';
+        this.hud.hint(
+          `<span><span class="key">R/L STICK</span> AIM</span><span><span class="key">RT / A</span> LOCK & STRIKE</span><span><span class="key">START</span> PAUSE</span>${ability}`,
+          8000
+        );
+      }
+    } else if (this.state === 'OPTIONS') {
+      this._refreshPadStatus();
+    }
   }
 
   showStageSelect() {
@@ -694,6 +751,7 @@ export class Game {
     this.pendingExtraLocks = 0;
     this.wisdomActive = 0;
     this.wisdomCooldown = 0;
+    this._padHintShown = false;
     this.stageEntryScore = this.score;
     this.stageEntryRunStats = { ...this.runStats };
     this.stageEntryRupees = this.rupees;
@@ -766,6 +824,7 @@ export class Game {
     });
     this.state = 'PLAYING';
     this._startBoss();
+    this._checkSoundPrompt();
   }
 
   beginPlay() {
@@ -804,14 +863,18 @@ export class Game {
     const abilityHint = this.powers.wisdom
       ? this.isTouch
         ? '<span><span class="key">◉</span> NAYRU’S FOCUS</span>'
-        : '<span><span class="key">E</span> NAYRU’S FOCUS</span>'
+        : '<span><span class="key">E / X</span> NAYRU’S FOCUS</span>'
       : '';
-    this.hud.hint(
-      this.isTouch
+    const padAbilityHint = this.powers.wisdom
+      ? '<span><span class="key">X</span> NAYRU’S FOCUS</span>'
+      : '';
+    const padHint = this.input.gamepadConnected
+      ? `<span><span class="key">R/L STICK</span> AIM</span><span><span class="key">RT / A</span> LOCK & STRIKE</span><span><span class="key">START</span> PAUSE</span>${padAbilityHint}`
+      : this.isTouch
         ? `<span><span class="key">HOLD</span> LOCK THE MALICE</span><span><span class="key">DRAG</span> ACROSS FOES</span><span><span class="key">RELEASE</span> STRIKE</span>${abilityHint}`
-        : `<span><span class="key">HOLD LMB</span> LOCK THE MALICE</span><span><span class="key">RELEASE</span> STRIKE IN HARMONY</span><span><span class="key">SPACE</span> ALSO LOCKS</span>${abilityHint}`,
-      9000
-    );
+        : `<span><span class="key">HOLD LMB</span> LOCK THE MALICE</span><span><span class="key">RELEASE</span> STRIKE IN HARMONY</span><span><span class="key">SPACE</span> ALSO LOCKS</span>${abilityHint}`;
+    this.hud.hint(padHint, 9000);
+    this._padHintShown = this.input.gamepadConnected;
     if (this.stageIndex === 0 && this.mode === 'campaign') {
       window.setTimeout(() => {
         if (this.state === 'PLAYING') {
@@ -835,6 +898,7 @@ export class Game {
     }
     this._syncHudPowers();
     this.audio.uiConfirm();
+    this._checkSoundPrompt();
   }
 
   restartStage() {
@@ -882,7 +946,9 @@ export class Game {
     this.save.markTrack(`boss:${this.stage.id}`);
     this.hud.setRunMeta(this._runMetaText());
     this.hud.hint(
-      '<span><span class="key">LOCK</span> THE MALICE EYES</span><span>BREAK THEM ALL TO EXPOSE THE CORE</span>',
+      this.input.gamepadConnected
+        ? '<span><span class="key">RT / A</span> LOCK THE MALICE EYES</span><span>BREAK THEM ALL TO EXPOSE THE CORE</span>'
+        : '<span><span class="key">LOCK</span> THE MALICE EYES</span><span>BREAK THEM ALL TO EXPOSE THE CORE</span>',
       10000
     );
     for (const enemy of this.enemies) {
@@ -1457,6 +1523,9 @@ export class Game {
       case 'share-result':
         this._shareResult();
         break;
+      case 'fullscreen':
+        this.toggleFullscreen();
+        break;
       case 'back-title':
       case 'title':
         this._returnToTitle();
@@ -1496,6 +1565,7 @@ export class Game {
       screenOptions({
         settings: this.settings,
         gamepadConnected: !!this.input.gamepadConnected,
+        gamepadId: this._safeGamepadId(),
       }),
       { dim: true }
     );
@@ -1630,11 +1700,20 @@ export class Game {
     }
   }
 
-  toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-    } else {
-      document.exitFullscreen?.().catch(() => {});
+  async toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen?.();
+        try {
+          await screen.orientation?.lock?.('landscape');
+        } catch {
+          /* Some browsers expose fullscreen without orientation locking. */
+        }
+      } else {
+        await document.exitFullscreen?.();
+      }
+    } catch {
+      /* Fullscreen requires a user gesture on most browsers. */
     }
   }
 

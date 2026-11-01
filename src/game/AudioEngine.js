@@ -57,6 +57,10 @@ export class AudioEngine {
     return !!this.ctx;
   }
 
+  get running() {
+    return this.ctx?.state === 'running';
+  }
+
   async unlock() {
     if (!this.ctx) this._init();
     if (this.ctx.state === 'suspended') {

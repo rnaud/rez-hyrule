@@ -73,6 +73,43 @@ beat produces **Harmony**; the tighter the timing, the bigger the bonus and the 
 climbs. Every shot is pitched into the current chord, and consecutive harmony releases lift the melody an
 octave.
 
+### Controller play — Retroid Pocket Nova & Android handhelds
+
+The game treats the handheld’s built-in controls as a **standard-mapped gamepad**. Press any button or
+move a stick once while Chrome is focused; Chrome only exposes a pad to the page after its first input.
+
+| Control | Action |
+| --- | --- |
+| Right or left stick | Aim the light |
+| D-pad | Aim (in-game) / move menu focus |
+| RT, LT, or A | Hold to lock; release to fire |
+| X or Y | Nayru’s Focus |
+| Start or Select | Pause / resume |
+| D-pad or stick + A | Choose and confirm in menus |
+| B / Select | Back out of menus |
+
+In menus, the first D-pad/stick press puts a gold focus ring on a button. A confirms it. The focused
+button is used instead of the default action, so controller-only players can reach Stage Select, options
+and the archive.
+
+**Sound on Android:** Chrome’s autoplay policy still requires a real touch/click gesture to start the
+Web Audio context. If you begin a run entirely with the controller and the game is silent, a small
+**“TAP FOR SOUND”** button appears. One tap of the screen is enough; the controller keeps working.
+
+**Fullscreen / landscape:** use **Fullscreen** in Pause → Options, or install the PWA from Chrome’s menu
+(the manifest requests a fullscreen, landscape window). Landscape is the intended layout; aim speed and
+lock assist can be tuned in Options.
+
+If the pad is not detected: press a button while the page is focused, make sure the controller is in its
+standard/Xbox mode, then reload. The controller path is covered by a standard-gamepad Playwright test in
+CI in addition to the normal smoke suite.
+
+<img src="screenshots/controller-options.png" alt="Controller options with a connected standard gamepad" width="620">
+
+<img src="screenshots/retroid-gameplay.png" alt="Controller gameplay layout at 1080p landscape" width="760">
+
+The controller help also appears in-game when a pad is detected.
+
 **Take your time.** Foes fly in, then hold station in front of you for several seconds — their targeting
 halo appears when they settle. That is your lock-on window. Once it expires they swoop past; a missed foe
 costs you its score and rupees, never a heart. Incoming fire is what costs health, and killing the caster
@@ -171,8 +208,8 @@ Everything you see and hear is generated at runtime:
   quantized into the current chord and become part of the music.
 - A **bloom post-processing** chain (EffectComposer + UnrealBloomPass + OutputPass) over additive vector
   lines, plus a CSS HUD with a live lock-on reticle, beat ring and chain counter.
-- **Gamepad input**, **PWA offline caching**, and a Playwright smoke-test suite covering the title, menus,
-  fifth guardian and offline shell.
+- **Gamepad input** with menu focus, **PWA offline caching**, and a Playwright suite covering the title,
+  menus, fifth guardian, controller flow, sound prompt and offline shell.
 
 ## Project layout
 

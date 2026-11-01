@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#03080a" />
     <meta name="description" content="REZ: HYRULE — a Rez-inspired rail shooter set in the realm of Hyrule. Awaken the Triforce. Built with three.js." />
     <title>REZ: HYRULE — Awaken the Triforce</title>
@@ -128,7 +128,11 @@
         <div id="flash" class="flash" aria-hidden="true"></div>
         <div id="damage-flash" class="damage-flash" aria-hidden="true"></div>
 
-        <div id="loading" class="loading">
+        <button id="sound-prompt" class="sound-prompt hidden" type="button" aria-label="Tap to enable audio">
+        <span class="sound-icon">◉</span> TAP FOR SOUND
+      </button>
+
+      <div id="loading" class="loading">
           <div class="loading-sigil">△</div>
           <div class="loading-text">AWAKENING THE SPIRIT RAILS</div>
           <div class="loading-bar"><i></i></div>
