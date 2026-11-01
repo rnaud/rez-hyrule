@@ -15,6 +15,18 @@ export class Player {
     this.group.name = 'hero';
     game.playerLayer.add(this.group);
     this.parts = this.group.userData.parts;
+    for (const glow of [this.parts.swordGlow, this.parts.tipGlow]) {
+      glow.material = glow.material.clone();
+      glow.material.userData.shared = false;
+    }
+    this.swordLines = [];
+    this.parts.sword.traverse((obj) => {
+      if (!obj.isLine) return;
+      obj.material = obj.material.clone();
+      obj.material.userData.shared = false;
+      obj.material.transparent = true;
+      this.swordLines.push({ material: obj.material, opacity: obj.material.opacity });
+    });
     // Start already in the sword-high guard rather than dropping into it.
     this.parts.armR.rotation.set(1.72, 0.3, 1.12);
     this.parts.foreR.rotation.set(0.65, 0.32, 0.24);
@@ -239,7 +251,10 @@ export class Player {
     p.foreL.rotation.z = damp(p.foreL.rotation.z, foreLz, 10, dt);
 
     const swordPulse = 0.85 + charge * 0.4 + slash * 0.9 + Math.sin(time * 5) * 0.05;
-    p.swordGlow.scale.setScalar(0.3 * swordPulse);
+    for (const line of this.swordLines) line.material.opacity = line.opacity * (0.35 + slash * 0.65);
+    p.swordGlow.material.opacity = 0.07 + slash * 0.25;
+    p.tipGlow.material.opacity = 0.12 + slash * 0.4;
+    p.swordGlow.scale.setScalar(0.22 * swordPulse);
     p.tipGlow.scale.setScalar(0.2 + charge * 0.2 + slash * 0.35 + Math.sin(time * 6) * 0.015);
     if (this.handGlow) {
       this.handGlow.material.opacity = 0.035 + charge * 0.34 + slash * 0.12 + Math.max(0, breath) * 0.018;
@@ -291,6 +306,9 @@ export class Player {
 
   dispose() {
     this.group.parent?.remove(this.group);
+    for (const line of this.swordLines) line.material.dispose();
+    this.parts.swordGlow.material.dispose();
+    this.parts.tipGlow.material.dispose();
     this.hitGlow.material.dispose();
     this.auraGlow.material.dispose();
     this.goldGlow.material.dispose();

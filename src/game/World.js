@@ -169,7 +169,7 @@ export class World {
       const a = (i / 64) * Math.PI * 2;
       ringPts.push(V(moonCenter.x + Math.cos(a) * moonR, moonCenter.y + Math.sin(a) * moonR, moonCenter.z));
     }
-    this.moonLine = this._celestialLine(ringPts, 0xffe6b0, 0.5, true);
+    this.moonLine = this._celestialLine(ringPts, 0xffe6b0, 0.22, true);
     const craterPts = [];
     for (let i = 0; i < 3; i++) {
       const a = i * 2.2;
@@ -187,7 +187,7 @@ export class World {
       map: getDotTexture(),
       color: 0xffe2a0,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.09,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,

@@ -37,6 +37,10 @@ export class Projectile {
     this.group.add(this.core);
     this.halo = glowSprite(0xffd9ec, 0.9 * this.size, 0.8);
     this.group.add(this.halo);
+    this.dangerGeo = new THREE.OctahedronGeometry(0.38 * this.size);
+    this.dangerMaterial = new THREE.MeshBasicMaterial({ color: 0xffd9ec });
+    this.dangerCore = new THREE.Mesh(this.dangerGeo, this.dangerMaterial);
+    this.group.add(this.dangerCore);
 
     // A short comet trail.
     this.trailGeo = new THREE.BufferGeometry();
@@ -139,5 +143,7 @@ export class Projectile {
     this.alive = false;
     if (this.group.parent) this.group.parent.remove(this.group);
     this.trailGeo.dispose();
+    this.dangerGeo.dispose();
+    this.dangerMaterial.dispose();
   }
 }

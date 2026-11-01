@@ -162,8 +162,8 @@ export class Hud {
   setBeat(phase, beatError, active = true) {
     if (!this.beatRingEl) return;
     const p = phase % 1;
-    const scale = 0.9 + p * 0.22;
-    const opacity = active ? Math.max(0, 0.55 - p * 0.45) : 0;
+    const scale = 1.18 - p * 0.28;
+    const opacity = active ? 0.35 + (1 - p) * 0.3 : 0;
     this.beatRingEl.style.transform = `scale(${scale.toFixed(3)})`;
     this.beatRingEl.style.opacity = opacity.toFixed(3);
     this.reticleEl.classList.toggle('on-beat', active && beatError < 0.1);

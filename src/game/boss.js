@@ -77,6 +77,14 @@ function createEyeVisual(scale, color, gold, isCore = false) {
   const rune = new THREE.Line(runeGeo, lineMaterial(gold, { opacity: 0.3 }));
   group.add(rune);
 
+  // Active targets remain readable against the newly opaque boss silhouette.
+  group.traverse((obj) => {
+    if (!obj.material) return;
+    if (obj.material.userData.shared) obj.material = obj.material.clone();
+    obj.material.userData.shared = false;
+    obj.material.depthTest = false;
+    obj.renderOrder = 8;
+  });
   return { group, glow, white, rune, geoms, color, gold };
 }
 
@@ -511,8 +519,7 @@ export class Boss {
     for (const w of this.weakspots) w.vis.group.parent?.remove(w.vis.group);
     for (const w of [...this.weakspots, this.core]) {
       w.vis.geoms.forEach((g) => g.dispose());
-      w.vis.glow.material.dispose();
-      w.vis.white.material.dispose();
+      w.vis.group.traverse(obj => obj.material?.dispose());
     }
     this.spawnGlow.material.dispose();
     this.spawnGlow.parent?.remove(this.spawnGlow);

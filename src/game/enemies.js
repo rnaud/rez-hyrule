@@ -260,14 +260,16 @@ export class Enemy {
     this.spawnWarp.position.y = 0.3;
     this.group.add(this.spawnWarp);
 
-    // A faint targeting halo makes small creatures readable at distance.
+    // Four compact acquisition corners; no competing full-screen circles.
     const haloPts = [];
-    for (let i = 0; i < 25; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      haloPts.push(new THREE.Vector3(Math.cos(a) * 1.5, Math.sin(a) * 1.5, 0));
+    for (const x of [-1, 1]) for (const y of [-1, 1]) {
+      haloPts.push(new THREE.Vector3(x * 1.1, y * 1.5, 0), new THREE.Vector3(x * 1.5, y * 1.5, 0),
+        new THREE.Vector3(x * 1.5, y * 1.5, 0), new THREE.Vector3(x * 1.5, y * 1.1, 0));
     }
     this.haloGeo = new THREE.BufferGeometry().setFromPoints(haloPts);
-    this.halo = new THREE.LineLoop(this.haloGeo, lineMaterial(0xffd38c, { opacity: 0.28 }));
+    this.halo = new THREE.LineSegments(this.haloGeo, lineMaterial(0xffd38c, { opacity: 0.65 }));
+    this.halo.material = this.halo.material.clone();
+    this.halo.material.userData.shared = false;
     this.halo.renderOrder = 2;
     this.halo.scale.setScalar(1.05);
     this.halo.visible = false;
@@ -450,6 +452,12 @@ export class Enemy {
       this.flashSprite.material.opacity = 0;
     }
 
+    if (this.shotsFired >= this.maxShots) {
+      this.halo.rotation.z = 0;
+      this.halo.material.color.setHex(0xffd38c);
+      this.halo.material.opacity = 0.65;
+    }
+
     // Ranged foes only fire while holding station, and only a small number of
     // times before they leave. Killing the caster clears its orbs in flight.
     if (
@@ -459,6 +467,16 @@ export class Enemy {
       this.shotsFired < this.maxShots
     ) {
       this.fireTimer -= dt;
+      // A contracting red diamond announces the shot before it becomes dangerous.
+      this.halo.material.color.setHex(this.fireTimer < 0.65 ? 0xff385b : 0xffd38c);
+      if (this.fireTimer < 0.65) {
+        this.halo.material.opacity = 1;
+        this.halo.scale.setScalar(0.8 + Math.max(0, this.fireTimer));
+        this.halo.rotation.z = Math.PI / 4;
+      } else {
+        this.halo.rotation.z = 0;
+        this.halo.material.opacity = 0.65;
+      }
       if (this.fireTimer <= 0) {
         this._fire(game);
         this.shotsFired += 1;

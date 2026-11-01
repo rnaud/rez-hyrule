@@ -1780,7 +1780,7 @@ export class Game {
       reticleX: 0,
       reticleY: 0,
     });
-    this.environment?.update(dt, this.playerDistance, this.clock);
+    this.environment?.update(dt, this.playerDistance, this.clock, this.enemies.some(e => e.alive) || !!this.boss);
     this.fx.update(dt);
   }
 
@@ -1793,7 +1793,7 @@ export class Game {
       reticleX: 0,
       reticleY: 0,
     });
-    this.environment?.update(dt, this.playerDistance, this.clock);
+    this.environment?.update(dt, this.playerDistance, this.clock, this.enemies.some(e => e.alive) || !!this.boss);
     this.fx.update(dt);
   }
 
@@ -1841,7 +1841,7 @@ export class Game {
       reticleY: this.player.retY,
       boss: isBoss,
     });
-    this.environment?.update(dt, this.playerDistance, this.clock);
+    this.environment?.update(dt, this.playerDistance, this.clock, this.enemies.some(e => e.alive) || !!this.boss);
 
     // Boss & minion logic.
     if (this.boss) {
@@ -1854,11 +1854,14 @@ export class Game {
     // Wave spawning.
     if (!isBoss) {
       this.waveTimer -= dt;
-      if (this.waveTimer <= 0) {
+      if (this.waveTimer <= 0 && (!this.audio.running || this.audio.getBeatInfo().phase < 0.15)) {
         this._spawnWave();
-        this.waveTimer = difficulty.spawnRate * (0.82 + this.random() * 0.4);
+        const beat = this.audio.beatDur;
+        const bar = this.audio.getBeatInfo().bar;
+        const breathing = Math.floor(bar / 8) % 4 === 2 ? 1.5 : 1;
+        this.waveTimer = Math.max(2, Math.round(difficulty.spawnRate * breathing / beat)) * beat - beat * 0.15;
       }
-      if (!this.boss && this.playerDistance >= this.bossTrigger) {
+      if (!this.boss && this.playerDistance >= this.bossTrigger && (!this.audio.running || this.audio.getBeatInfo().beat % 4 < 0.15)) {
         this._startBoss();
       }
     } else if (this.boss && this.boss.alive) {
@@ -1945,7 +1948,7 @@ export class Game {
       reticleY: 0,
       boss: true,
     });
-    this.environment?.update(dt, this.playerDistance, this.clock);
+    this.environment?.update(dt, this.playerDistance, this.clock, this.enemies.some(e => e.alive) || !!this.boss);
     this.boss?.update(dt * 0.55, this);
     for (const enemy of this.enemies) {
       if (enemy.alive) enemy.update(dt * 0.5, this);
@@ -1998,6 +2001,7 @@ export class Game {
     this.hud.clearLocks({ fire: true });
     this.hud.reticleFire();
     if (this.fireQueue.length) {
+      this.audio.playVolley(this.fireQueue.length, this.isHarmonicRelease, this.harmonyChain);
       this.audio.fireWhoosh();
       this.player.firePulse();
       this.world.punchFov(0.7 + this.fireQueue.length * 0.12);
@@ -2025,7 +2029,7 @@ export class Game {
         duration: 0.3 + item.index * 0.015,
         onArrive: (t) => this._onBeamArrive(t, this.isHarmonicRelease),
       });
-      this.audio.playerNote(this.isHarmonicRelease, this.harmonyChain);
+      // Musical response is scheduled once on the audio clock at release.
       this.fireTimer = 0.055;
     }
   }

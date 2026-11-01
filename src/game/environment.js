@@ -1810,9 +1810,9 @@ export function buildEnvironment(scene, stage, rail) {
     const c = at(f, (rng.next() - 0.5) * 26, 0.5 + rng.next() * 12);
     motes.push(c.x, c.y, c.z);
   }
-  const motePoints = buildPoints(motes, p.primary, 0.9, 0.38);
+  const motePoints = buildPoints(motes, p.primary, 0.35, 0.1);
   group.add(motePoints);
-  dyn.push({ obj: motePoints, type: 'twinkle', base: 0.38, speed: 0.6 });
+  dyn.push({ obj: motePoints, type: 'twinkle', base: 0.1, speed: 0.6 });
 
   const lines = batch.build(1);
   group.add(lines);
@@ -1825,7 +1825,26 @@ export function buildEnvironment(scene, stage, rail) {
     }
   }
 
-  function update(dt, playerDistance, elapsed) {
+  // Clone stage materials before adjusting contrast; cached model materials stay intact.
+  const scenicMaterials = new Map();
+  group.traverse((obj) => {
+    if (!obj.material) return;
+    const original = obj.material;
+    if (!scenicMaterials.has(original)) {
+      const material = original.clone();
+      material.userData.shared = false;
+      material.transparent = true;
+      material.userData.scenicOpacity = material.opacity;
+      scenicMaterials.set(original, material);
+    }
+    obj.material = scenicMaterials.get(original);
+  });
+  let contrast = 0.62;
+  function update(dt, playerDistance, elapsed, combat = false) {
+    contrast += ((combat ? 0.32 : 0.62) - contrast) * Math.min(1, dt * 3);
+    for (const material of scenicMaterials.values()) {
+      material.opacity = material.userData.scenicOpacity * contrast;
+    }
     for (const d of dyn) {
       if (!d.obj) continue;
       if (d.type === 'spin') {
@@ -1835,12 +1854,15 @@ export function buildEnvironment(scene, stage, rail) {
         d.obj.rotation.y += (d.spin || 0) * dt;
       } else if (d.type === 'twinkle') {
         const mat = d.obj.material;
-        if (mat) mat.opacity = clamp(d.base + Math.sin(elapsed * 1.7 + d.obj.id) * 0.16, 0, 1);
+        if (mat) mat.opacity = clamp(d.base + Math.sin(elapsed * 1.7 + d.obj.id) * 0.04, 0, 1) * contrast;
       }
     }
   }
 
   function dispose() {
+    for (const original of scenicMaterials.keys()) {
+      if (!original.userData?.shared) original.dispose();
+    }
     group.traverse((child) => {
       if (child.geometry && !child.geometry.userData?.shared) child.geometry.dispose();
       if (child.material && !child.material.userData?.shared) {

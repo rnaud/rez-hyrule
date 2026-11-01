@@ -12,7 +12,7 @@ const PARTICLE_VERTEX = `
     vColor = aColor;
     vAlpha = aAlpha;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(aSize * uPixelRatio * (380.0 / max(4.0, -mvPosition.z)), 1.0, 44.0);
+    gl_PointSize = clamp(aSize * uPixelRatio * (380.0 / max(4.0, -mvPosition.z)), 1.0, 22.0);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
@@ -25,7 +25,7 @@ const PARTICLE_FRAGMENT = `
     float d = length(uv);
     if (d > 0.5) discard;
     float a = smoothstep(0.5, 0.05, d);
-    gl_FragColor = vec4(vColor, vAlpha * a);
+    gl_FragColor = vec4(vColor, vAlpha * a * 0.65);
   }
 `;
 
@@ -142,7 +142,7 @@ class ParticleField {
 class Shockwaves {
   constructor(scene) {
     this.items = [];
-    const geo = new THREE.RingGeometry(0.86, 1, 40);
+    const geo = new THREE.RingGeometry(0.975, 1, 40);
     for (let i = 0; i < 18; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: 0xffffff,
@@ -167,7 +167,7 @@ class Shockwaves {
     this.cursor = (this.cursor + 1) % this.items.length;
     item.mesh.position.copy(pos);
     item.mesh.material.color.set(color);
-    item.mesh.material.opacity = 0.9;
+    item.mesh.material.opacity = 0.35;
     item.mesh.scale.setScalar(0.05);
     item.mesh.visible = true;
     item.active = true;
@@ -188,7 +188,7 @@ class Shockwaves {
       const t = 1 - item.life / item.maxLife;
       const ease = 1 - Math.pow(1 - t, 3);
       item.mesh.scale.setScalar(0.05 + ease * item.size);
-      item.mesh.material.opacity = Math.pow(1 - t, 1.4) * 0.8;
+      item.mesh.material.opacity = Math.pow(1 - t, 1.4) * 0.35;
       item.mesh.quaternion.copy(camera.quaternion);
     }
   }

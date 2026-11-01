@@ -149,6 +149,16 @@ motifs, drum fills, evolving bass and arpeggio patterns, and small per-run ornam
 the same local identity but darken it, and grow more intense as the boss changes phase. Music layers also
 open earlier, so each rail establishes its own voice sooner.
 
+Volley feedback starts immediately, while its musical answer plays on sixteenth notes in the current
+chord. Echoes follow the stage tempo; the lead and arpeggio briefly step back to leave room for your
+phrase. A quiet quarter-note anchor remains through breakdowns. Enemy waves enter on beats, ease off
+during breakdowns, and rail bosses enter at bar boundaries. The reticle contracts toward each beat.
+
+Combat uses dark solid enemy silhouettes beneath luminous contours, compact gold lock brackets, and
+crisp diamond-shaped projectile cores. Ranged foes turn their acquisition brackets into a contracting
+red warning before firing. Scenery fades back during encounters and recovers between them; ambient
+motes and the sword's idle glow stay subdued. Active boss targets remain visible against their armor.
+
 ## Systems
 
 ### Guardian duels keep moving

@@ -175,6 +175,7 @@ export class AudioEngine {
     this.layers = { kick: 1, bass: 1, hats: 1, arp: 0, pad: 0, lead: 0, shimmer: 0 };
     this.layerGains = {};
     this._lastHarmony = 0;
+    this.volleyVoices = new Set();
     this.bossPhase = 1;
     this._lastForm = -1;
     this.musicSeed = (Math.random() * 0xffffffff) >>> 0;
@@ -268,7 +269,13 @@ export class AudioEngine {
     for (const name of Object.keys(this.layers)) {
       const g = ctx.createGain();
       g.gain.value = 0;
-      g.connect(musicBus);
+      if (name === 'lead' || name === 'arp') {
+        if (!this.melodicBus) {
+          this.melodicBus = ctx.createGain();
+          this.melodicBus.connect(musicBus);
+        }
+        g.connect(this.melodicBus);
+      } else g.connect(musicBus);
       this.layerGains[name] = g;
     }
     // Kick and bass are always audible once the stage starts.
@@ -362,12 +369,14 @@ export class AudioEngine {
 
   startStage(stage) {
     if (!this.ctx) return;
+    this.clearVolley();
     this.stopDrone(0.3);
     this.stage = stage;
     this.playing = true;
     this.boss = false;
     this.beatDur = 60 / stage.bpm;
     this.stepDur = this.beatDur / 4;
+    this.delay?.delayTime.setTargetAtTime(this.beatDur * 0.75, this.ctx.currentTime, 0.08);
     this.step = 0;
     this.musicStart = this.ctx.currentTime + 0.14;
     this.nextStepTime = this.musicStart;
@@ -387,12 +396,14 @@ export class AudioEngine {
   /** Restart the sequencer on a distinct boss theme. */
   startBossTheme(config) {
     if (!this.ctx || !config) return;
+    this.clearVolley();
     this.stopDrone(0.2);
     this.stage = config;
     this.playing = true;
     this.boss = true;
     this.beatDur = 60 / config.bpm;
     this.stepDur = this.beatDur / 4;
+    this.delay?.delayTime.setTargetAtTime(this.beatDur * 0.75, this.ctx.currentTime, 0.08);
     this.step = 0;
     this.musicStart = this.ctx.currentTime + 0.12;
     this.nextStepTime = this.musicStart;
@@ -468,6 +479,7 @@ export class AudioEngine {
 
   stopMusic(fade = 1.2) {
     this.playing = false;
+    this.clearVolley();
     this.stopDrone(fade);
     if (this.ctx && this.musicBus) {
       const t = this.ctx.currentTime;
@@ -512,10 +524,9 @@ export class AudioEngine {
     return this.beatError() < tolerance;
   }
 
-  _currentChord() {
+  _currentChord(time = this.ctx?.currentTime ?? 0) {
     if (!this.stage) return [0, 3, 7];
-    const info = this.getBeatInfo();
-    const bar = Math.max(0, Math.floor(info.beat / 4));
+    const bar = Math.max(0, Math.floor((time - this.musicStart) / (this.beatDur * 4)));
     const blockBars = this.boss ? 4 : 8;
     const useB = !!this.stage.progressionB && Math.floor(bar / blockBars) % 2 === 1;
     const prog = useB ? this.stage.progressionB : this.stage.progression;
@@ -562,6 +573,8 @@ export class AudioEngine {
     }
 
     this._playDrums(styleName, form, barStep, bar, time);
+    // A quiet, dry quarter-note anchor remains legible through breakdowns.
+    if (breakdown && barStep % 4 === 0) this._kick(time, 0.16);
 
     // --- bass ---
     if (g.bass.gain.value > 0.001) {
@@ -1086,7 +1099,7 @@ export class AudioEngine {
     g.connect(this.layerGains.lead);
     if (this.reverb) {
       const send = ctx.createGain();
-      send.gain.value = 0.55;
+      send.gain.value = 0.22;
       g.connect(send);
       send.connect(this.reverb);
     }
@@ -1144,17 +1157,38 @@ export class AudioEngine {
     g.gain.exponentialRampToValueAtTime(0.045, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
     osc.connect(g);
-    if (this.delay) g.connect(this.delay);
     g.connect(this.sfxBus);
     osc.start(t);
     osc.stop(t + 0.1);
   }
 
   /** A player shot, pitched into the current chord. Becomes part of the music. */
-  playerNote(onBeat = false, chain = 0) {
+  clearVolley() {
+    for (const osc of this.volleyVoices) { try { osc.stop(); } catch { /* already ended */ } }
+    this.volleyVoices.clear();
+    if (this.melodicBus && this.ctx) {
+      this.melodicBus.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.melodicBus.gain.setValueAtTime(1, this.ctx.currentTime);
+    }
+  }
+
+  playVolley(count, onBeat = false, chain = 0) {
+    if (!this.ctx || !this.playing || count <= 0) return;
+    this.clearVolley();
+    const now = this.ctx.currentTime;
+    const start = this.musicStart + Math.ceil((now + 0.008 - this.musicStart) / this.stepDur) * this.stepDur;
+    const spacing = this.stepDur;
+    const end = start + (count - 1) * spacing + 0.18;
+    const gain = this.melodicBus.gain;
+    gain.cancelScheduledValues(now);
+    gain.setTargetAtTime(0.42, now, 0.025);
+    gain.setTargetAtTime(1, end, 0.15);
+    for (let i = 0; i < count; i++) this.playerNote(onBeat, chain, start + i * spacing);
+  }
+
+  playerNote(onBeat = false, chain = 0, t = this.ctx?.currentTime) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    const chord = this._currentChord();
+    const chord = this._currentChord(t);
     const degs = [0, 1, 2, 1, 2, 0, 2, 1];
     const d = degs[this.playerNoteIndex % degs.length];
     this.playerNoteIndex++;
@@ -1175,18 +1209,20 @@ export class AudioEngine {
     g.connect(this.musicBus);
     if (this.delay) {
       const send = this.ctx.createGain();
-      send.gain.value = 0.55;
+      send.gain.value = 0.22;
       g.connect(send);
       send.connect(this.delay);
     }
     if (onBeat && this.reverb) {
       const send = this.ctx.createGain();
-      send.gain.value = 0.35;
+      send.gain.value = 0.18;
       g.connect(send);
       send.connect(this.reverb);
     }
     osc.start(t);
     osc.stop(t + 0.6);
+    this.volleyVoices.add(osc);
+    osc.onended = () => { this.volleyVoices.delete(osc); osc.disconnect(); filter.disconnect(); g.disconnect(); };
   }
 
   fireWhoosh() {

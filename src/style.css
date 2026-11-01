@@ -3510,3 +3510,8 @@ body.is-touch .touch-only {
     margin-top: 12px;
   }
 }
+
+/* Acquisition is a bracket; the reticle alone carries the beat ring. */
+.lock-marker .lm-ring, .lock-marker .lm-inner { display: none; }
+.lock-marker .lm-bracket, .lock-marker.boss .lm-bracket { border-color: #ffe6a6; }
+.lock-marker.boss .lm-num { background: #ffe6a6; border-color: #ffe6a6; color: #17120a; }

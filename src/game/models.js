@@ -11,6 +11,9 @@ import {
 /* construction helpers                                               */
 /* ------------------------------------------------------------------ */
 
+let buildingCombatModel = false;
+const silhouetteMaterial = new THREE.MeshBasicMaterial({ color: 0x111923, depthWrite: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+silhouetteMaterial.userData.shared = true;
 const fillMaterials = new Map();
 function fillMaterial(color, opacity = 0.22) {
   const key = `${color}|${opacity}`;
@@ -45,7 +48,12 @@ function applyTransform(obj, { pos, rot, scale } = {}) {
 }
 
 function addWire(parent, geometry, color, opts = {}) {
-  const { opacity = 1, threshold = 1, name } = opts;
+  const { opacity = 1, threshold = buildingCombatModel ? 22 : 1, name } = opts;
+  if (buildingCombatModel) {
+    const body = new THREE.Mesh(geometry, silhouetteMaterial);
+    applyTransform(body, opts);
+    parent.add(body);
+  }
   const line = new THREE.LineSegments(edgesOf(geometry, threshold), lineMaterial(color, { opacity }));
   line.renderOrder = 3;
   applyTransform(line, opts);
@@ -88,7 +96,7 @@ function addShape(parent, triangles, color, opts = {}) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.userData.shared = true;
-  const mesh = new THREE.Mesh(geo, fillMaterial(color, opts.opacity ?? 0.16));
+  const mesh = new THREE.Mesh(geo, buildingCombatModel ? silhouetteMaterial : fillMaterial(color, opts.opacity ?? 0.16));
   mesh.renderOrder = 1;
   applyTransform(mesh, opts);
   parent.add(mesh);
@@ -1657,7 +1665,9 @@ export function createEnemyModel(type) {
   if (!enemyTemplates[type]) {
     const factory = enemyFactories[type];
     if (!factory) throw new Error(`Unknown enemy type: ${type}`);
-    enemyTemplates[type] = factory();
+    buildingCombatModel = true;
+    try { enemyTemplates[type] = factory(); }
+    finally { buildingCombatModel = false; }
   }
   return enemyTemplates[type].clone(true);
 }
@@ -1675,7 +1685,9 @@ export function createBossModel(type) {
   if (!bossTemplates[type]) {
     const factory = bossFactories[type];
     if (!factory) throw new Error(`Unknown boss type: ${type}`);
-    bossTemplates[type] = factory();
+    buildingCombatModel = true;
+    try { bossTemplates[type] = factory(); }
+    finally { buildingCombatModel = false; }
   }
   return bossTemplates[type].clone(true);
 }
