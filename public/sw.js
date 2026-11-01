@@ -2,7 +2,7 @@
  * The app is a static Vite build; cache its hashed assets on install so the
  * last rail can still be flown when the network is gone.
  */
-const VERSION = 'rez-hyrule-2026-10-31.4';
+const VERSION = 'rez-hyrule-2026-10-31.5';
 const CACHE = `rez-hyrule-${VERSION}`;
 const BASE = new URL('./', self.location.href);
 const SHELL = [

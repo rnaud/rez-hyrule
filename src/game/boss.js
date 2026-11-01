@@ -215,8 +215,9 @@ export class Boss {
     this.basis.fwd.copy(f.fwd);
 
     const follow = (game.player?.lateral || 0) * 2.8;
-    const sway = Math.sin(this.time * 0.55) * (this.boss ? 4.6 : 5.5) + follow;
-    const rise = Math.sin(this.time * 0.9 + 1.2) * 0.8;
+    const followY = -(game.player?.retY || 0) * 1.4;
+    const sway = Math.sin(this.time * 0.55) * 5.0 + follow;
+    const rise = Math.sin(this.time * 0.9 + 1.2) * 0.8 + followY;
     this.center
       .copy(f.pos)
       .addScaledVector(f.up, HEIGHT + rise)
