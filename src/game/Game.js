@@ -495,7 +495,7 @@ export class Game {
   }
 
   _cycleScreenFocus(direction = 1) {
-    const items = [...this.hud.screenEl.querySelectorAll('button:not([disabled])')].filter(
+    const items = [...this.hud.screenEl.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled])')].filter(
       (el) => el.offsetParent !== null
     );
     if (!items.length) return;
@@ -1593,6 +1593,34 @@ export class Game {
   }
 
   onPadButton(button) {
+    if (button === 'start') {
+      if (this.state === 'PAUSED') this.resumeGame();
+      else this.onPadButton('confirm');
+      return;
+    }
+    const control = document.activeElement;
+    const isSetting = this.hud.screenEl.contains(control) && control.matches('[data-setting]');
+    if (button === 'menu-left' || button === 'menu-right') {
+      const direction = button === 'menu-right' ? 1 : -1;
+      if (isSetting) {
+        if (control.type === 'range') {
+          direction > 0 ? control.stepUp() : control.stepDown();
+        } else if (control.tagName === 'SELECT') {
+          control.selectedIndex = clamp(control.selectedIndex + direction, 0, control.options.length - 1);
+        } else if (control.type === 'checkbox') {
+          control.checked = direction > 0;
+        }
+        this.onSettingInput({ target: control });
+      } else this._cycleScreenFocus(direction);
+      return;
+    }
+    if (button === 'confirm' && isSetting) {
+      if (control.type === 'checkbox') {
+        control.checked = !control.checked;
+        this.onSettingInput({ target: control });
+      }
+      return;
+    }
     if (button === 'menu-next' || button === 'menu-prev') {
       this._cycleScreenFocus(button === 'menu-next' ? 1 : -1);
       return;

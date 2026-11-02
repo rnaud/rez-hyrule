@@ -492,7 +492,7 @@ export class Enemy {
       this.hoverAge > 1.9
     ) {
       this.teleported = true;
-      game.spawnTeleport(this.worldPos);
+      game.fx.teleport(this.worldPos);
       this.baseLateral = (game.random() < 0.5 ? -1 : 1) * (3 + game.random() * 7);
       this.baseHeight = -1.5 + game.random() * 6;
       this.spawnT = 0.35;

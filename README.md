@@ -88,6 +88,8 @@ move a stick once while Chrome is focused; Chrome only exposes a pad to the page
 | D-pad or stick + A | Choose and confirm in menus |
 | B / Select | Back out of menus |
 
+In Options, Up/Down selects any control, Left/Right adjusts sliders and lists, and A toggles checkboxes. Start resumes a paused run even when another menu action is focused.
+
 In menus, the first D-pad/stick press puts a gold focus ring on a button. A confirms it. The focused
 button is used instead of the default action, so controller-only players can reach Stage Select, options
 and the archive.
@@ -223,6 +225,8 @@ Defeating guardians fills the three fragments and reveals the assembled Triforce
 All settings and progress are stored in `localStorage`; reset progress by clearing the site data.
 
 ### Offline PWA
+
+On Android, open the HTTPS site in Chrome and choose **Options → Install app**, then tap the button to accept the browser installation prompt. If no prompt is available, use **Chrome menu → Add to Home screen → Install**. Launch from the home screen for fullscreen landscape play. Load the game online once before going offline. Pair your Bluetooth or USB controller, then press a button with the game focused.
 
 The build ships a service worker and manifest. After one successful load, the entire shell — fonts, hashed
 scripts, styles, icons and the game — is cached and can be opened offline. The audio engine and the light

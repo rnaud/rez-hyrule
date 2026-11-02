@@ -1,3 +1,4 @@
+import './install.js';
 import { Game } from './game/Game.js';
 
 const canvas = document.getElementById('stage-canvas');

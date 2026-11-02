@@ -255,13 +255,15 @@ export function screenOptions({ settings = {}, gamepadConnected = false, gamepad
           <span class="pad-status ${gamepadConnected ? 'connected' : ''}" title="${gamepadId || ''}"><span class="dot"></span>${gamepadConnected ? `CONTROLLER CONNECTED${gamepadId ? ` · ${gamepadId}` : ''}` : 'NO CONTROLLER DETECTED'}</span>
           <span class="option-desc">Pad: right/left stick aim · RT or A locks · X is Nayru’s Focus · Start pauses · D-pad menus.</span>
         </div>
+        <p class="option-desc" data-install-status role="status">Android: install from Chrome’s menu → Add to Home screen → Install.</p>
         <div class="options-actions">
+          <button class="btn btn-ghost" data-install>Install app</button>
           <button class="btn btn-ghost" data-action="fullscreen">Fullscreen</button>
           <button class="btn btn-ghost" data-action="reset-settings">Restore defaults</button>
           <button class="btn btn-primary" data-action="back-options">Back</button>
         </div>
       </div>
-      <div class="pad-hint">PAD · D-PAD / STICK MOVE FOCUS · A CONFIRM · B BACK</div>
+      <div class="pad-hint">PAD · UP/DOWN SELECT · LEFT/RIGHT ADJUST · A CONFIRM · B BACK</div>
     </div>`;
 }
 

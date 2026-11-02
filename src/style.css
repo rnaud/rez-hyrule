@@ -2963,7 +2963,7 @@ body.reduce-motion .loading-sigil {
   animation: none;
 }
 
-.screen button.pad-focus {
+.screen .pad-focus {
   outline: 1px solid var(--gold-bright);
   outline-offset: 4px;
   box-shadow: 0 0 22px rgba(242, 210, 123, 0.25);

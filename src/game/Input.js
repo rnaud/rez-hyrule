@@ -1,7 +1,7 @@
 import { clamp } from './util.js';
 
 /**
- * Pointer + keyboard aim. The reticle follows the pointer one-to-one,
+ * Pointer, keyboard and controller aim. The reticle follows the pointer one-to-one,
  * and can also be driven by the arrow keys / WASD for keyboard play.
  */
 export class Input {
@@ -122,7 +122,7 @@ export class Input {
   }
 
   _pollGamepad(dt) {
-    if (!this.gamepadEnabled || !navigator.getGamepads) {
+    if ((!this.gamepadEnabled && this.enabled) || !navigator.getGamepads) {
       this.padDown = false;
       this.gamepadConnected = false;
       return;
@@ -143,9 +143,13 @@ export class Input {
       this.gamepadId = '';
       this.gamepadMapping = '';
       this._padNotified = false;
+      this._menuAxisHeld = false;
+      this.padIndex = null;
       return;
     }
-    if (this.gamepadId !== gp.id) {
+    if (this.gamepadId !== (gp.id || 'Controller')) {
+      this.padButtons = {};
+      this._menuAxisHeld = false;
       this.gamepadId = gp.id || 'Controller';
       this.gamepadMapping = gp.mapping || 'non-standard';
       this._padNotified = false;
@@ -153,22 +157,26 @@ export class Input {
 
     const confirm = this._edge(gp, 0);
     const back = this._edge(gp, 1);
-    const ability = this._edge(gp, 2) || this._edge(gp, 3);
+    const x = this._edge(gp, 2);
+    const y = this._edge(gp, 3);
+    const ability = x || y;
     const start = this._edge(gp, 9);
     const select = this._edge(gp, 8);
 
     if (!this.enabled) {
       if (confirm) this.onPadButton?.('confirm');
       if (back || select) this.onPadButton?.('back');
-      if (start) this.onPadButton?.('confirm');
+      if (start) this.onPadButton?.('start');
 
       // Menu navigation: D-pad or either stick. One step per press.
       const up = this._edge(gp, 12);
       const down = this._edge(gp, 13);
       const left = this._edge(gp, 14);
       const right = this._edge(gp, 15);
-      if (down || right) this.onPadButton?.('menu-next');
-      if (up || left) this.onPadButton?.('menu-prev');
+      if (down) this.onPadButton?.('menu-next');
+      if (up) this.onPadButton?.('menu-prev');
+      if (right) this.onPadButton?.('menu-right');
+      if (left) this.onPadButton?.('menu-left');
       let ax = gp.axes[0] || 0;
       let ay = gp.axes[1] || 0;
       if (Math.abs(gp.axes[2] || 0) > Math.abs(ax)) ax = gp.axes[2] || 0;
@@ -176,7 +184,7 @@ export class Input {
       const axisHeld = Math.abs(ax) > 0.65 || Math.abs(ay) > 0.65;
       if (axisHeld && !this._menuAxisHeld) {
         if (Math.abs(ay) > Math.abs(ax)) this.onPadButton?.(ay > 0 ? 'menu-next' : 'menu-prev');
-        else this.onPadButton?.(ax > 0 ? 'menu-next' : 'menu-prev');
+        else this.onPadButton?.(ax > 0 ? 'menu-right' : 'menu-left');
       }
       this._menuAxisHeld = axisHeld;
 

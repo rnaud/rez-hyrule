@@ -48,3 +48,22 @@ test('combat remains readable across stages and handheld viewport', async ({ pag
   }
   expect(errors).toEqual([]);
 });
+
+test('Wizzrobe completes its evasive teleport without stopping combat', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="start"]').click();
+  await page.locator('[data-action="continue"]').click();
+  const result = await page.evaluate(() => {
+    const game = window.__rez;
+    game._spawnWave();
+    const Enemy = game.enemies[0].constructor;
+    const enemy = new Enemy(game, 'wizzrobe', {});
+    game.enemies.push(enemy);
+    enemy.mode = 'hover';
+    enemy.hoverAge = 2;
+    enemy.dwell = 10;
+    enemy.update(0.016, game);
+    return { teleported: enemy.teleported, alive: enemy.alive };
+  });
+  expect(result).toEqual({ teleported: true, alive: true });
+});

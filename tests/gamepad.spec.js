@@ -121,6 +121,36 @@ test('standard gamepad can navigate, aim, focus and pause', async ({ browser }) 
   await press(0);
   await expect.poll(() => page.evaluate(() => window.__rez.state)).toBe('PLAYING');
 
+  // Every Options control is reachable, including sliders and selects.
+  await press(9);
+  await page.evaluate(() => window.__rez.openOptions('PAUSED'));
+  await press(13);
+  await expect(page.locator('[data-setting="musicVolume"]')).toBeFocused();
+  const volume = await page.locator('[data-setting="musicVolume"]').inputValue();
+  await press(14);
+  await expect(page.locator('[data-setting="musicVolume"]')).toHaveValue(String(Number(volume) - 1));
+  await press(13);
+  await press(13);
+  await press(13);
+  await expect(page.locator('[data-setting="lockAssist"]')).toBeFocused();
+  await press(15);
+  await expect(page.locator('[data-setting="lockAssist"]')).toHaveValue('high');
+  await press(13);
+  await press(13);
+  await press(13);
+  await expect(page.locator('[data-setting="gamepad"]')).toBeFocused();
+  await press(0);
+  await expect(page.locator('[data-setting="gamepad"]')).not.toBeChecked();
+  // Menu navigation stays available so the controller can turn itself back on.
+  await press(0);
+  await expect(page.locator('[data-setting="gamepad"]')).toBeChecked();
+  await press(1);
+  await expect.poll(() => page.evaluate(() => window.__rez.state)).toBe('PAUSED');
+  // Start always resumes, even with a different menu action focused.
+  await page.locator('[data-action="fullscreen"]').focus();
+  await press(9);
+  await expect.poll(() => page.evaluate(() => window.__rez.state)).toBe('PLAYING');
+
   expect(errors, errors.join('\n')).toEqual([]);
   await context.close();
 });
