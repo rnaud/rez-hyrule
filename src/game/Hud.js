@@ -22,6 +22,8 @@ export class Hud {
     this.popupLayer = document.getElementById('popup-layer');
     this.bannerEl = document.getElementById('banner');
     this.subtitleEl = document.getElementById('subtitle');
+    this.lyricEl = document.getElementById('canticle-line');
+    this.lyricWordsEl = document.getElementById('canticle-words');
     this.hintEl = document.getElementById('hint');
     this.screenEl = document.getElementById('screen');
     this.flashEl = document.getElementById('flash');
@@ -60,6 +62,8 @@ export class Hud {
     this._popupCount = 0;
     this._heartGen = 0;
     this._screenVisible = false;
+    this._lyricText = null;
+    this._lyricSpans = [];
 
     window.addEventListener('resize', () => this._applyReticlePrefs());
 
@@ -425,6 +429,46 @@ export class Hud {
     this.subtitleEl.innerHTML = text;
     this.subtitleEl.classList.add('show');
     this._timers.subtitle = window.setTimeout(() => this.subtitleEl.classList.remove('show'), duration);
+  }
+
+  /**
+   * The karaoke line of the canticle: the words actually being sung, with the
+   * syllable under the playhead lit. Rebuilt only when the line changes.
+   */
+  setLyric(line) {
+    if (!line || !line.syllables?.length) {
+      this.hideLyric();
+      return;
+    }
+    if (line.text !== this._lyricText) {
+      this._lyricText = line.text;
+      this.lyricWordsEl.innerHTML = '';
+      this._lyricSpans = [];
+      let word = null;
+      for (const syl of line.syllables) {
+        if (!word) {
+          word = document.createElement('span');
+          word.className = 'lyric-word';
+          this.lyricWordsEl.appendChild(word);
+        }
+        const span = document.createElement('span');
+        span.className = 'lyric-syl';
+        span.textContent = syl.text;
+        word.appendChild(span);
+        this._lyricSpans.push(span);
+        if (syl.wordEnd) word = null;
+      }
+    }
+    for (let i = 0; i < this._lyricSpans.length; i++) {
+      const span = this._lyricSpans[i];
+      span.classList.toggle('sung', i < line.active);
+      span.classList.toggle('now', i === line.active);
+    }
+    this.lyricEl.classList.add('show');
+  }
+
+  hideLyric() {
+    this.lyricEl.classList.remove('show');
   }
 
   hint(text, duration = 9000) {

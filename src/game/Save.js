@@ -18,6 +18,8 @@ const DEFAULT_SETTINGS = {
   quality: 'high',
   gamepad: true,
   subtitles: true,
+  canticleVoice: 'female',
+  canticleEnsemble: 'ensemble',
 };
 
 const DEFAULT_PROGRESS = {
@@ -35,6 +37,8 @@ const DEFAULT_PROGRESS = {
   bossRushBest: 0,
   bossRushRuns: 0,
   daily: { date: '', score: 0, rank: '', stage: -1 },
+  canticleBest: {},
+  canticleRuns: 0,
   totalKills: 0,
   totalBosses: 0,
   totalRuns: 0,
@@ -222,6 +226,19 @@ export class Save {
       return true;
     }
     return false;
+  }
+
+  recordCanticle(stageId, { score = 0, rank = '', accuracy = 0 } = {}) {
+    const best = this.progress.canticleBest || (this.progress.canticleBest = {});
+    const prev = best[stageId];
+    let isBest = false;
+    if (!prev || score > prev.score) {
+      best[stageId] = { score: Math.floor(score), rank, accuracy };
+      isBest = true;
+    }
+    this.progress.canticleRuns = (this.progress.canticleRuns || 0) + 1;
+    this.save();
+    return isBest;
   }
 
   recordBossRush(score) {

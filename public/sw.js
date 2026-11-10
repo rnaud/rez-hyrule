@@ -2,7 +2,7 @@
  * The app is a static Vite build; cache its hashed assets on install so the
  * last rail can still be flown when the network is gone.
  */
-const VERSION = 'rez-hyrule-2026-11-02.1';
+const VERSION = 'rez-hyrule-2026-11-10.1';
 const CACHE = `rez-hyrule-${VERSION}`;
 const BASE = new URL('./', self.location.href);
 const SHELL = [
@@ -13,6 +13,10 @@ const SHELL = [
   new URL('./icons/icon-512.png', BASE).href,
   new URL('./icons/icon-maskable-512.png', BASE).href,
   new URL('./icons/apple-touch-icon.png', BASE).href,
+  // The Canticle: the vocal engine and its worklet are fetched at runtime, so they
+  // are precached explicitly (the shell scan only sees what index.html references).
+  new URL('./chimera/chimera.wasm', BASE).href,
+  new URL('./chimera/worklet.js', BASE).href,
 ];
 
 const put = async (cache, url) => {

@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:ci": "npm run build && playwright test"
+    "test:ci": "npm run build && playwright test",
+    "canticle:wasm": "bash scripts/build-chimera-wasm.sh",
+    "canticle:lyrics": "node scripts/build-canticle-lyrics.mjs",
+    "canticle:render": "node scripts/render-canticle.mjs --analyze"
   },
   "dependencies": {
     "three": "^0.180.0"

@@ -1,6 +1,7 @@
 import { pad, roman } from './util.js';
 import { STAGES } from './stages.js';
 import { ENEMY_TYPES } from './enemies.js';
+import { CANTICLE, CANTICLE_BODIES, CANTICLE_BODY_ORDER } from '../chimera/canticle.js';
 import {
   ENEMY_LORE,
   BOSS_LORE,
@@ -91,6 +92,7 @@ export function screenTitle({ highScore = 0, progress = {}, daily = {}, unlocked
   const bestBossRush = progress.bossRushBest || 0;
   const dailyBest = daily?.date ? daily.score : 0;
   const dailyLabel = daily?.date || 'TODAY';
+  const canticleBest = Math.max(0, ...Object.values(progress.canticleBest || {}).map((entry) => entry?.score || 0));
 
   return `
     <div class="screen-inner">
@@ -121,6 +123,11 @@ export function screenTitle({ highScore = 0, progress = {}, daily = {}, unlocked
           <span class="mode-icon">☼</span>
           <span class="mode-name">Daily Rail</span>
           <span class="mode-sub">${dailyLabel} · Best ${pad(dailyBest)}</span>
+        </button>
+        <button class="mode-btn" data-action="canticle">
+          <span class="mode-icon">◍</span>
+          <span class="mode-name">The Canticle</span>
+          <span class="mode-sub">${canticleBest > 0 ? `All voice · Best ${pad(canticleBest)}` : 'Every sound a voice'}</span>
         </button>
         <button class="mode-btn" data-action="gallery">
           <span class="mode-icon">✦</span>
@@ -182,6 +189,96 @@ export function screenStageSelect({ progress = {} } = {}) {
 }
 
 /* ------------------------------------------------------------------ */
+/* the canticle                                                       */
+/* ------------------------------------------------------------------ */
+
+export function screenCanticle({ progress = {}, voice = 'female', ensemble = 'ensemble' } = {}) {
+  const unlocked = progress.unlocked || 1;
+  const best = progress.canticleBest || {};
+  const singer = CANTICLE_BODIES[voice] || CANTICLE_BODIES.female;
+  const voices = CANTICLE_BODY_ORDER.map((id) => {
+    const body = CANTICLE_BODIES[id];
+    return `<button class="voice-chip ${id === voice ? 'active' : ''}" data-action="canticle-voice" data-voice="${id}">
+      <span class="voice-name">${body.name}</span>
+      <span class="voice-blurb">${body.blurb}</span>
+    </button>`;
+  }).join('');
+
+  const cards = STAGES.map((stage, index) => {
+    const locked = index + 1 > unlocked;
+    const record = best[stage.id];
+    return `
+      <button class="stage-card ${locked ? 'locked' : ''}" data-action="canticle-stage" data-stage="${index}" ${locked ? 'disabled' : ''} style="--stage-a:${hexColor(stage.palette.primary)};--stage-b:${hexColor(stage.palette.secondary)}">
+        <span class="stage-num">${roman(index + 1)}</span>
+        <span class="stage-info">
+          <h3>${stage.name}</h3>
+          <p>${CANTICLE[stage.id]?.motto || stage.chapter} · ${stage.boss.shortName}</p>
+        </span>
+        <span class="stage-best">
+          ${
+            record
+              ? `<span class="best-score">${pad(record.score)}</span><span class="best-label">BEST · ${record.rank || '—'}</span>`
+              : `<span class="stage-locked-note">${locked ? 'CLEAR THE PREVIOUS RAIL' : 'NEVER SUNG'}</span>`
+          }
+        </span>
+        <span class="stage-rank">${record?.rank || (locked ? '·' : '')}</span>
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="screen-inner wide canticle-inner">
+      <div class="screen-heading">
+        <div class="kicker">A VOICE MADE OF AIR</div>
+        <h1>THE CANTICLE</h1>
+        <p>Every sound on the rail is sung. The drums are a mouth, the bass is a hum, the guardian’s roar is a throat, and your shots are words. Nothing here is sampled or recorded: a physical model of lungs, vocal folds and a mouth performs the score live.</p>
+      </div>
+      <div class="canticle-voice-pick">
+        <div class="tiny-kicker">THE SINGER · ${singer.name.toUpperCase()}</div>
+        <div class="voice-options">${voices}</div>
+      </div>
+      <div class="stage-select-head">
+        <div class="tiny-kicker">RAILS OPEN ${unlocked} / ${STAGES.length}</div>
+        <button class="screen-back" data-action="back-title">← RETURN TO TITLE</button>
+      </div>
+      <div class="stage-list">${cards}</div>
+      <div class="canticle-foot">
+        <span>HEADPHONES RECOMMENDED</span>
+        <span>${ensemble === 'cantor' ? `ONE UNACCOMPANIED VOICE · ${CANTICLE_BODIES[voice]?.name || 'Soprano'}` : `TWO LIVE VOICES · ${CANTICLE_BODIES[voice]?.name || 'Soprano'} + BEATBOX`}</span>
+        <span>THE WORDS ON SCREEN ARE THE WORDS SUNG</span>
+      </div>
+      <div class="pad-hint">PAD · D-PAD / STICK SELECT · A CONFIRM · B BACK</div>
+    </div>`;
+}
+
+export function screenCanticlePreparing({ stage, voice = 'female' } = {}) {
+  const singer = CANTICLE_BODIES[voice] || CANTICLE_BODIES.female;
+  return `
+    <div class="screen-inner canticle-loading">
+      <div class="kicker">THE CANTICLE</div>
+      <h1>WAKING THE VOICE</h1>
+      <div class="voice-wake" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <p>Building an airway for <b>${singer.name}</b>${stage ? ` and the ${stage.name} line` : ''}.<br />
+      Lungs, folds, tongue and lips — the first breath takes a moment.</p>
+    </div>`;
+}
+
+export function screenCanticleError({ stage, message = '' } = {}) {
+  return `
+    <div class="screen-inner canticle-loading">
+      <div class="kicker">THE CANTICLE</div>
+      <h1 class="fallen">THE VOICE WILL NOT WAKE</h1>
+      <p>This browser could not start the voice model. ${message ? `<span class="tiny-kicker">${message}</span>` : ''}<br />
+      The rail can still be flown with the synthesized score.</p>
+      <div class="over-actions">
+        <button class="btn btn-primary" data-action="canticle-fallback" data-stage="${stage?.index ?? 0}">Fly it with the synth score</button>
+        <button class="btn btn-ghost" data-action="back-title">Return to title</button>
+      </div>
+    </div>`;
+}
+
+/* ------------------------------------------------------------------ */
 /* options                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -238,6 +335,7 @@ export function screenOptions({ settings = {}, gamepadConnected = false, gamepad
         <div class="option-divider">SOUND</div>
         ${optionRange('musicVolume', 'Music', 'The generative score. Turn it up.', Math.round((settings.musicVolume ?? 0.7) * 100), 0, 100, 1, `${Math.round((settings.musicVolume ?? 0.7) * 100)}%`)}
         ${optionRange('sfxVolume', 'Sound effects', 'Locks, shots, impacts and voices of the malice.', Math.round((settings.sfxVolume ?? 0.85) * 100), 0, 100, 1, `${Math.round((settings.sfxVolume ?? 0.85) * 100)}%`)}
+        ${optionSelect('canticleEnsemble', 'Canticle ensemble', 'The vocal mode: a cantor with a beatboxer, or one unaccompanied voice for slower devices.', [['ensemble', 'Cantor & beatbox'], ['cantor', 'Cantor alone']], settings.canticleEnsemble || 'ensemble')}
         <div class="option-divider">CONTROL</div>
         ${optionRange('aimSpeed', 'Aim speed', 'Keyboard and controller reticle speed. Mouse aiming is direct.', Math.round((settings.aimSpeed ?? 1) * 100), 50, 200, 5, `${Math.round((settings.aimSpeed ?? 1) * 100)}%`, 'percent')}
         ${optionSelect('lockAssist', 'Lock assist', 'How forgiving the reticle is when painting a lock.', [['off', 'Off'], ['normal', 'Normal'], ['high', 'High']], settings.lockAssist || 'normal')}
@@ -515,7 +613,9 @@ export function screenResults({
       ? `SCORE ATTACK · ${stage.chapter}`
       : mode === 'daily'
         ? `DAILY RAIL · ${dailyDate || 'TODAY'}`
-        : `STAGE CLEAR · ${stage.chapter}`;
+        : mode === 'canticle'
+          ? `THE CANTICLE · ${stage.chapter}`
+          : `STAGE CLEAR · ${stage.chapter}`;
   const primary =
     mode === 'campaign'
       ? `<button class="btn btn-primary" data-action="open-shrine">${nextStage ? `Visit the Shrine` : 'Continue'}</button>`
@@ -523,9 +623,13 @@ export function screenResults({
         ? `<button class="btn btn-primary" data-action="retry-stage">Try again</button>
            <button class="btn btn-ghost" data-action="share-result">Share result</button>
            <button class="btn btn-ghost" data-action="back-title">Title</button>`
-        : `<button class="btn btn-primary" data-action="stage-select">Choose another rail</button>
-           <button class="btn btn-ghost" data-action="retry-stage">Rail again</button>
-           <button class="btn btn-ghost" data-action="share-result">Share result</button>`;
+        : mode === 'canticle'
+          ? `<button class="btn btn-primary" data-action="retry-stage">Sing it again</button>
+             <button class="btn btn-ghost" data-action="canticle">Choose another rail</button>
+             <button class="btn btn-ghost" data-action="share-result">Share result</button>`
+          : `<button class="btn btn-primary" data-action="stage-select">Choose another rail</button>
+             <button class="btn btn-ghost" data-action="retry-stage">Rail again</button>
+             <button class="btn btn-ghost" data-action="share-result">Share result</button>`;
   return `
     <div class="screen-inner results-inner">
       <div class="results-head">
@@ -606,9 +710,9 @@ export function screenBossRushResults({ score = 0, best = 0, time = '00:00', gua
 
 export function screenGameOver({ stage, score, best, killed, spawned, mode = 'campaign' }) {
   const accuracy = spawned > 0 ? Math.round((killed / spawned) * 100) : 0;
-  const retryAction = mode === 'bossrush' ? 'retry-rush' : mode === 'score' || mode === 'daily' ? 'retry-stage' : 'retry';
-  const retryLabel = mode === 'bossrush' ? 'Try the gauntlet again' : 'Rise again';
-  const modeNote = mode === 'daily' ? 'Daily Rail' : mode === 'score' ? 'Score Attack' : mode === 'bossrush' ? 'Boss Rush' : stage.name;
+  const retryAction = mode === 'bossrush' ? 'retry-rush' : mode === 'score' || mode === 'daily' || mode === 'canticle' ? 'retry-stage' : 'retry';
+  const retryLabel = mode === 'bossrush' ? 'Try the gauntlet again' : mode === 'canticle' ? 'Sing it again' : 'Rise again';
+  const modeNote = mode === 'daily' ? 'Daily Rail' : mode === 'score' ? 'Score Attack' : mode === 'bossrush' ? 'Boss Rush' : mode === 'canticle' ? 'The Canticle' : stage.name;
   return `
     <div class="screen-inner over-inner">
       <div class="over-kicker">THE RAIL FALLS SILENT · ${modeNote}</div>
@@ -666,7 +770,7 @@ export function screenVictory({ score, best, stats, isBest }) {
 /* ------------------------------------------------------------------ */
 
 export function screenPause({ stage, score, rupees, hearts, awakened, muted, mode = 'campaign' }) {
-  const modeLabel = mode === 'score' ? 'SCORE ATTACK' : mode === 'daily' ? 'DAILY RAIL' : mode === 'bossrush' ? 'BOSS RUSH' : stage.name;
+  const modeLabel = mode === 'score' ? 'SCORE ATTACK' : mode === 'daily' ? 'DAILY RAIL' : mode === 'bossrush' ? 'BOSS RUSH' : mode === 'canticle' ? 'THE CANTICLE' : stage.name;
   return `
     <div class="screen-inner pause-inner">
       <div class="tiny-kicker" style="margin-bottom:10px">${modeLabel}</div>

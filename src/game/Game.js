@@ -3,6 +3,8 @@ import { World } from './World.js';
 import { Hud } from './Hud.js';
 import { Input } from './Input.js';
 import { AudioEngine } from './AudioEngine.js';
+import { CanticleAudio } from '../chimera/CanticleAudio.js';
+import { CANTICLE_BODIES } from '../chimera/canticle.js';
 import { Player } from './Player.js';
 import { Rail } from './Rail.js';
 import { Effects } from './effects.js';
@@ -23,6 +25,9 @@ import {
   screenGallery,
   screenShrine,
   screenBossRushResults,
+  screenCanticle,
+  screenCanticlePreparing,
+  screenCanticleError,
 } from './screens.js';
 import { TRACKS, POWER_INFO } from './catalog.js';
 import { Save, DEFAULT_SETTINGS } from './Save.js';
@@ -60,7 +65,14 @@ export class Game {
     this.bossFxLayer = this.world.bossFxLayer;
     this.save = new Save();
     this.settings = this.save.settings;
-    this.audio = new AudioEngine();
+    this.baseAudio = new AudioEngine();
+    this.audio = this.baseAudio;
+    this.canticle = null;
+    this.canticleVoice = CANTICLE_BODIES[this.settings.canticleVoice] ? this.settings.canticleVoice : 'female';
+    this._muted = this.audio.muted;
+    this._canticleToken = 0;
+    this._lyricText = null;
+    this._lyricAt = -1;
     this.audio.setVolumes(this.settings.musicVolume, this.settings.sfxVolume);
     this.input = new Input();
     this.hud = new Hud({
@@ -249,8 +261,14 @@ export class Game {
 
   applyAllSettings() {
     const s = this.settings;
+    this.baseAudio.setVolumes(s.musicVolume, s.sfxVolume);
+    this.baseAudio.setMuted(this._muted);
+    if (this.canticle) {
+      this.canticle.setVolumes(s.musicVolume, s.sfxVolume);
+      this.canticle.setMuted(this._muted);
+    }
     this.audio.setVolumes(s.musicVolume, s.sfxVolume);
-    this.audio.setMuted(this.audio.muted);
+    this.audio.setMuted(this._muted);
     this.world.applyQuality(s.quality);
     this.world.shakeScale = s.reduceShake ? 0.18 : 1;
     this.world.fovScale = s.reduceShake ? 0.35 : 1;
@@ -523,6 +541,12 @@ export class Game {
 
   showTitle() {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    this._canticleToken += 1;
+    this.canticle?.stopMusic(0.25);
+    this._setAudio(this.baseAudio);
+    this.hud.hideLyric();
+    this._lyricText = null;
+    this._lyricAt = -1;
     this._teardownWorld();
     const unlocked = this.save.progress.unlocked || 1;
     const resumeStage = clamp(this.save.progress.campaignStage || 0, 0, unlocked - 1);
@@ -624,6 +648,9 @@ export class Game {
     this.bossRushCleared = 0;
     this._runTotalsSaved = false;
     this._pendingVictoryBest = null;
+    this._lyricText = null;
+    this._lyricAt = -1;
+    this.hud.hideLyric();
     this.save.progress.totalRuns += 1;
     this.save.save();
   }
@@ -680,12 +707,160 @@ export class Game {
     this._loadStage(0, { story: false, bossOnly: true });
   }
 
+  /* ------------------------------------------------------------------ */
+  /* the canticle (CHIMERA vocal mode)                                  */
+  /* ------------------------------------------------------------------ */
+
+  showCanticleSelect() {
+    this._canticleToken += 1;
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    if (this.audio !== this.baseAudio) this._setAudio(this.baseAudio);
+    this.audio.stopMusic(0.3);
+    this.canticle?.stopMusic(0.25);
+    this.hud.hideLyric();
+    this.state = 'CANTICLE_SELECT';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hideBoss();
+    this.hud.showScreen(
+      screenCanticle({
+        progress: this.save.progress,
+        voice: this.canticleVoice,
+        ensemble: this.settings.canticleEnsemble === 'cantor' ? 'cantor' : 'ensemble',
+      }),
+      { dim: true }
+    );
+    document.body.classList.remove('is-playing');
+  }
+
+  /** Build (or reuse) the vocal engine at the current settings. */
+  _ensureCanticle() {
+    const wanted = this.settings.canticleEnsemble === 'cantor' ? 'cantor' : 'ensemble';
+    if (this.canticle && this.canticle.ensemble !== wanted) {
+      this._setAudio(this.baseAudio);
+      this.canticle.dispose();
+      this.canticle = null;
+    }
+    if (!this.canticle) {
+      this.canticle = new CanticleAudio({
+        voice: this.canticleVoice,
+        ensemble: wanted,
+        onNotice: (notice) => this._onCanticleNotice(notice),
+      });
+    }
+    this.canticle.setVoice(this.canticleVoice);
+    this.canticle.setVolumes(this.settings.musicVolume, this.settings.sfxVolume);
+    this.canticle.setMuted(this._muted);
+    return this.canticle;
+  }
+
+  /** Move the game's audio calls to another engine (base synth or the voice). */
+  _setAudio(next) {
+    if (!next || next === this.audio) return;
+    try {
+      this.audio?.stopMusic(0.15);
+    } catch {
+      /* the old engine may not be built yet */
+    }
+    this.audio = next;
+    this.audio.setVolumes(this.settings.musicVolume, this.settings.sfxVolume);
+    this.audio.setMuted(this._muted);
+  }
+
+  _setMuted(muted) {
+    this._muted = !!muted;
+    this.baseAudio.setMuted(this._muted);
+    this.canticle?.setMuted(this._muted);
+    this.audio.setMuted(this._muted);
+  }
+
+  _onCanticleNotice(notice) {
+    if (!notice) return;
+    if (notice.type === 'degrade') {
+      this.hud.subtitle('<span class="gold">The beatboxer steps back</span> so the rail keeps its time.', 4200);
+      this.save.settings.canticleEnsemble = 'cantor';
+      this.save.save();
+      return;
+    }
+    console.error('[REZ: HYRULE] canticle:', notice.text);
+  }
+
+  _showCanticleError(stage, error) {
+    this._canticleToken += 1;
+    this.state = 'CANTICLE_ERROR';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    const index = STAGES.indexOf(stage);
+    const message = String(error?.message || error || '')
+      .replace(/[<>&"]/g, '')
+      .slice(0, 120);
+    this.hud.showScreen(
+      screenCanticleError({ stage: { ...stage, index: index < 0 ? 0 : index }, message }),
+      { dim: true }
+    );
+    document.body.classList.remove('is-playing');
+  }
+
+  async startCanticle(index) {
+    const i = clamp(Number(index) || 0, 0, STAGES.length - 1);
+    if (i + 1 > (this.save.progress.unlocked || 1)) return;
+    this.audio.unlock();
+    this.audio.uiConfirm();
+    this._canticleToken += 1;
+    const token = this._canticleToken;
+    this.state = 'CANTICLE_PREP';
+    this.input.setEnabled(false);
+    this.hud.showHud(false);
+    this.hud.hideReticle();
+    this.hud.hideLyric();
+    this.hud.showScreen(screenCanticlePreparing({ stage: STAGES[i], voice: this.canticleVoice }), { dim: true });
+    let engine;
+    try {
+      engine = this._ensureCanticle();
+      await engine.ready();
+    } catch (error) {
+      if (token === this._canticleToken) this._showCanticleError(STAGES[i], error);
+      return;
+    }
+    if (token !== this._canticleToken) return;
+    try {
+      this._setAudio(engine);
+      this.mode = 'canticle';
+      this._beginRun({ maxHealth: 16, seed: (Math.random() * 0xffffffff) >>> 0 });
+      this._loadStage(i, { story: false });
+    } catch (error) {
+      console.error('[REZ: HYRULE] canticle start failed', error);
+      if (token === this._canticleToken) this._showCanticleError(STAGES[i], error);
+    }
+  }
+
+  _updateLyric() {
+    if (this.mode !== 'canticle' || typeof this.audio.lyricNow !== 'function') {
+      this.hud.hideLyric();
+      return;
+    }
+    const line = this.audio.lyricNow();
+    if (!line) {
+      this.hud.hideLyric();
+      return;
+    }
+    const visible = this.hud.lyricEl.classList.contains('show');
+    if (line.text !== this._lyricText || line.active !== this._lyricAt || !visible) {
+      this._lyricText = line.text;
+      this._lyricAt = line.active;
+      this.hud.setLyric(line);
+    }
+  }
+
   _runMetaText() {
     if (this.mode === 'bossrush') {
       return `BOSS RUSH · GUARDIAN ${roman(this.bossRushIndex + 1)} / ${roman(STAGES.length)}`;
     }
     if (this.mode === 'score') return `SCORE ATTACK · ${this.stage.chapter}`;
     if (this.mode === 'daily') return `DAILY RAIL · ${prettyDate(this.dailyInfo?.date || localDateKey())}`;
+    if (this.mode === 'canticle') return `THE CANTICLE · ${this.stage.chapter}`;
     return `CAMPAIGN · RAIL ${roman(this.stageIndex + 1)} / ${roman(STAGES.length)}`;
   }
 
@@ -855,7 +1030,9 @@ export class Game {
         ? `SCORE ATTACK · RAIL ${roman(this.stageIndex + 1)}`
         : this.mode === 'daily'
           ? `DAILY RAIL · ${prettyDate(this.dailyInfo?.date || localDateKey())}`
-          : this.stage.chapter;
+          : this.mode === 'canticle'
+            ? `THE CANTICLE · ${CANTICLE_BODIES[this.canticleVoice]?.name.toUpperCase() || 'THE VOICE'}`
+            : this.stage.chapter;
     this.hud.showBanner({
       kicker,
       title: this.stage.name,
@@ -917,6 +1094,11 @@ export class Game {
     }
     if (this.mode === 'bossrush') {
       this.startBossRush();
+      return;
+    }
+    if (this.mode === 'canticle') {
+      this.hud.hideLyric();
+      this.startCanticle(this.stageIndex);
       return;
     }
     this.score = this.stageEntryScore ?? this.score;
@@ -1069,6 +1251,7 @@ export class Game {
     this.hud.clearLocks();
     this.hud.hint('');
     this.hud.subtitle('');
+    this.hud.hideLyric();
     this.locks = [];
     this.fireQueue = [];
     this.invulnerable = 999;
@@ -1156,7 +1339,9 @@ export class Game {
         ? `DAILY RAIL ${this.dailyInfo?.date || localDateKey()}`
         : mode === 'score'
           ? `SCORE ATTACK · ${stageName}`
-          : `CAMPAIGN · ${stageName}`;
+          : mode === 'canticle'
+            ? `THE CANTICLE · ${stageName}`
+            : `CAMPAIGN · ${stageName}`;
     return `REZ: HYRULE — ${modeLabel} — ${this.score.toLocaleString('en-US')} pts · Rank ${rank} · ${Math.round(accuracy * 100)}% shot down — ${SITE_URL}`;
   }
 
@@ -1167,10 +1352,19 @@ export class Game {
     this.hud.hideReticle();
     this.hud.subtitle('');
     this.hud.hint('');
+    this.hud.hideLyric();
 
     const rank = this._calculateRank();
     if (this.mode === 'score') {
       this.save.recordStage(this.stage.id, {
+        score: this.score,
+        rank,
+        accuracy:
+          this.stats.spawned > 0 ? Math.round((this.stats.killed / this.stats.spawned) * 100) : 100,
+      });
+    }
+    if (this.mode === 'canticle') {
+      this.save.recordCanticle(this.stage.id, {
         score: this.score,
         rank,
         accuracy:
@@ -1319,6 +1513,7 @@ export class Game {
     this.hud.showHud(false);
     this.hud.hint('');
     this.hud.subtitle('');
+    this.hud.hideLyric();
     this.audio.stopMusic(1.4);
     this.audio.defeat();
     this._saveBest(this.score);
@@ -1347,7 +1542,7 @@ export class Game {
         rupees: this.rupees,
         hearts: this.health,
         awakened: this.awaken,
-        muted: this.audio.muted,
+        muted: this._muted,
         mode: this.mode,
       }),
       { dim: true }
@@ -1362,6 +1557,7 @@ export class Game {
     this.audio.pause();
     this.hud.hideReticle();
     this.hud.clearLocks();
+    this.hud.hideLyric();
     this.locks = [];
     this.fireQueue = [];
     this._showPauseScreen();
@@ -1476,6 +1672,26 @@ export class Game {
       case 'daily':
         this.startDaily();
         break;
+      case 'canticle':
+        this.showCanticleSelect();
+        break;
+      case 'canticle-voice': {
+        const voice = button?.dataset?.voice;
+        if (voice && CANTICLE_BODIES[voice]) {
+          this.canticleVoice = voice;
+          this.save.setSetting('canticleVoice', voice);
+          this.canticle?.setVoice(voice);
+        }
+        this.showCanticleSelect();
+        break;
+      }
+      case 'canticle-stage':
+        this.startCanticle(Number(button?.dataset?.stage));
+        break;
+      case 'canticle-fallback':
+        this.audio.uiConfirm();
+        this.startScoreAttack(Number(button?.dataset?.stage));
+        break;
       case 'gallery':
         this.openGallery(this.state === 'VICTORY' ? 'VICTORY' : 'TITLE');
         break;
@@ -1542,7 +1758,7 @@ export class Game {
         break;
       case 'mute': {
         this.audio.unlock();
-        this.audio.toggleMuted();
+        this._setMuted(!this._muted);
         if (this.state === 'PAUSED') this._showPauseScreen();
         break;
       }
@@ -1636,7 +1852,8 @@ export class Game {
     }
     if (button === 'back') {
       if (this.state === 'OPTIONS') this.closeOptions();
-      else if (this.state === 'STAGE_SELECT' || this.state === 'GALLERY') this._returnToTitle();
+      else if (this.state === 'STAGE_SELECT' || this.state === 'GALLERY' || this.state === 'CANTICLE_SELECT') this._returnToTitle();
+      else if (this.state === 'CANTICLE_PREP' || this.state === 'CANTICLE_ERROR') this.showCanticleSelect();
       else if (this.state === 'PAUSED') this.resumeGame();
       return;
     }
@@ -1677,7 +1894,7 @@ export class Game {
     if (event.repeat) return;
     if (code === 'KeyM') {
       this.audio.unlock();
-      this.audio.toggleMuted();
+      this._setMuted(!this._muted);
       if (this.state === 'PAUSED') this._showPauseScreen();
       return;
     }
@@ -1697,6 +1914,13 @@ export class Game {
         case 'STAGE_SELECT':
         case 'GALLERY':
           this._returnToTitle();
+          break;
+        case 'CANTICLE_SELECT':
+          this._returnToTitle();
+          break;
+        case 'CANTICLE_PREP':
+        case 'CANTICLE_ERROR':
+          this.showCanticleSelect();
           break;
         case 'PLAYING':
         case 'BOSS':
@@ -1785,6 +2009,9 @@ export class Game {
       state === 'GALLERY' ||
       state === 'STAGE_SELECT' ||
       state === 'SHRINE' ||
+      state === 'CANTICLE_SELECT' ||
+      state === 'CANTICLE_PREP' ||
+      state === 'CANTICLE_ERROR' ||
       state === 'BOSS_RUSH_RESULTS'
     ) {
       this._updateMenuScene(dt);
@@ -1829,6 +2056,7 @@ export class Game {
     this.stageElapsed += dt;
     const isBoss = this.state === 'BOSS';
     const difficulty = STAGE_DIFFICULTY[this.stageIndex];
+    this._updateLyric();
 
     if (this.wisdomActive > 0) this.wisdomActive = Math.max(0, this.wisdomActive - dt);
     if (this.wisdomCooldown > 0) this.wisdomCooldown = Math.max(0, this.wisdomCooldown - dt);

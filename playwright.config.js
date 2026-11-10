@@ -15,6 +15,9 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     launchOptions: {
+      // Local convenience: point at a Chromium build the installed Playwright revision
+      // does not know about. CI leaves this unset and uses the bundled browser.
+      ...(process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {}),
       args: [
         '--enable-unsafe-swiftshader',
         '--ignore-gpu-blocklist',

@@ -155,6 +155,10 @@ export const MODE_INFO = {
     title: 'DAILY RAIL',
     subtitle: 'A shared seed of malice. Today’s stage, today’s glory.',
   },
+  canticle: {
+    title: 'THE CANTICLE',
+    subtitle: 'Every sound on the rail is a voice, sung live.',
+  },
 };
 
 const stageTrack = (stage, index) => ({
