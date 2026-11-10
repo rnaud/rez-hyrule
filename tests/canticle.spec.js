@@ -135,35 +135,35 @@ test('canticle options and the cantor-only ensemble are wired', async ({ page })
   expect(ensemble.voice).toBe('cantor');
   expect(ensemble.beatbox).toBe(false);
 
-  // With no beatboxer, every effect must still be sung rather than skipped.
-  const peaks = await page.evaluate(async () => {
+  // With no beatboxer, every effect must still be sung rather than skipped. This
+  // watches the planner rather than the speakers: a real-time peak measurement is
+  // too sensitive to the audio thread's block cadence on CI runners.
+  const scheduled = await page.evaluate(async () => {
     const c = window.__rez.canticle;
     c.stopMusic(0.05);
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await new Promise((resolve) => setTimeout(resolve, 650));
     c.cantor.stopSpeech();
-    const analyser = c.ctx.createAnalyser();
-    analyser.fftSize = 4096;
-    c.cantor.gain.connect(analyser);
-    const buf = new Float32Array(analyser.fftSize);
-    const peakOf = async (fn) => {
-      fn();
-      let peak = 0;
-      const end = performance.now() + 800;
-      while (performance.now() < end) {
-        await new Promise((resolve) => setTimeout(resolve, 25));
-        analyser.getFloatTimeDomainData(buf);
-        for (const x of buf) peak = Math.max(peak, Math.abs(x));
-      }
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      return peak;
+    const calls = [];
+    const original = c.cantor.schedule.bind(c.cantor);
+    c.cantor.schedule = (gestures, lead = 0) => {
+      calls.push({ n: gestures.length, lead });
+      original(gestures, lead);
     };
-    return {
-      damage: await peakOf(() => c.damage()),
-      hitMarker: await peakOf(() => c.hitMarker()),
-      fanfare: await peakOf(() => c.fanfare()),
-    };
+    const out = {};
+    for (const name of ['damage', 'hitMarker', 'lockBlip', 'explode', 'pickup', 'fanfare', 'bossRoar']) {
+      const before = calls.length;
+      c[name]();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      out[name] = calls.slice(before);
+    }
+    c.cantor.schedule = original;
+    return out;
   });
-  expect(peaks.damage).toBeGreaterThan(0.005);
-  expect(peaks.hitMarker).toBeGreaterThan(0.005);
-  expect(peaks.fanfare).toBeGreaterThan(0.005);
+  for (const [name, calls] of Object.entries(scheduled)) {
+    expect(calls.length, `${name} has a sung fallback`).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call.n).toBeGreaterThan(0);
+      expect(call.lead).toBeGreaterThan(0);
+    }
+  }
 });

@@ -32,19 +32,27 @@ test('standard gamepad can navigate, aim, focus and pause', async ({ browser }) 
     });
   });
 
+  // The game samples the pad once per frame. Synchronise with that sample instead
+  // of sleeping: a slow software-rendered frame otherwise eats a whole press.
+  const padSeen = (index, value) =>
+    page.waitForFunction(
+      ([i, v]) => window.__rez?.input?.padButtons?.[i] === v,
+      [index, value],
+      { timeout: 10_000 }
+    );
+  const setPad = (index, down) =>
+    page.evaluate(([i, d]) => {
+      const button = window.__fakePad.buttons[i];
+      button.pressed = d;
+      button.value = d ? 1 : 0;
+    }, [index, down]);
   const press = async (index) => {
-    await page.evaluate((i) => {
-      const button = window.__fakePad.buttons[i];
-      button.pressed = true;
-      button.value = 1;
-    }, index);
-    await page.waitForTimeout(140);
-    await page.evaluate((i) => {
-      const button = window.__fakePad.buttons[i];
-      button.pressed = false;
-      button.value = 0;
-    }, index);
-    await page.waitForTimeout(180);
+    await setPad(index, false);
+    await padSeen(index, false).catch(() => {});
+    await setPad(index, true);
+    await padSeen(index, true);
+    await setPad(index, false);
+    await padSeen(index, false);
   };
 
   await page.goto('http://127.0.0.1:4173/');
@@ -53,16 +61,10 @@ test('standard gamepad can navigate, aim, focus and pause', async ({ browser }) 
   await page.waitForTimeout(500);
 
   // D-pad focuses the first menu action; A confirms it.
-  await page.evaluate(() => {
-    window.__fakePad.buttons[13].pressed = true;
-    window.__fakePad.buttons[13].value = 1;
-  });
-  await page.waitForTimeout(240);
-  await page.evaluate(() => {
-    window.__fakePad.buttons[13].pressed = false;
-    window.__fakePad.buttons[13].value = 0;
-  });
-  await page.waitForTimeout(150);
+  await setPad(13, true);
+  await padSeen(13, true);
+  await setPad(13, false);
+  await padSeen(13, false);
   await expect(page.locator('button.pad-focus')).toHaveAttribute('data-action', 'start');
 
   await press(0);
@@ -129,6 +131,7 @@ test('standard gamepad can navigate, aim, focus and pause', async ({ browser }) 
   const volume = await page.locator('[data-setting="musicVolume"]').inputValue();
   await press(14);
   await expect(page.locator('[data-setting="musicVolume"]')).toHaveValue(String(Number(volume) - 1));
+  await press(13);
   await press(13);
   await press(13);
   await press(13);
